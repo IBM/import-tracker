@@ -31,9 +31,6 @@ _import_mode = os.environ.get(MODE_ENV_VAR, LAZY)
 # The global mapping from modules to dependencies
 _module_dep_mapping = {}
 
-# The path where global modules are found
-_std_lib_dir = os.path.realpath(os.path.dirname(os.__file__))
-
 # Lazily created global mapping from module name to package name
 _module_to_pkg = None
 
@@ -136,34 +133,6 @@ def _track_deps(module_name: str, *args, **kwargs):
 
     # Return the imported module
     return imported
-
-
-def _get_non_std_modules() -> Set[str]:
-    """Take a snapshot of the non-standard modules currently imported"""
-    this_module = __name__.split(".")[0]
-    return {
-        mod_name.split(".")[0]
-        for mod_name, mod in sys.modules.items()
-        if not mod_name.startswith("_")
-        and "." not in mod_name
-        and _get_import_parent_path(mod) != _std_lib_dir
-        and os.path.splitext(mod.__file__)[-1] not in [".so", ".dylib"]
-        and mod_name.split(".")[0] != this_module
-    }
-
-
-def _get_import_parent_path(mod) -> str:
-    """Get the parent directory of the given module"""
-    # Some standard libs have no __file__ attribute
-    if not hasattr(mod, "__file__"):
-        return _std_lib_dir
-
-    # If the module comes from an __init__, we need to pop two levels off
-    file_path = mod.__file__
-    if os.path.splitext(os.path.basename(mod.__file__))[0] == "__init__":
-        file_path = os.path.dirname(file_path)
-    parent_path = os.path.dirname(file_path)
-    return parent_path
 
 
 def _map_modules_to_package_names():
