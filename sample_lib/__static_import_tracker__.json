@@ -1,15 +1,12 @@
 {
-  "sample_lib.submod1": [
-    "numpy",
-    "sample_lib"
-  ],
-  "sample_lib.submod2": [
-    "alog",
-    "sample_lib"
-  ],
   "sample_lib.nested.submod3": [
     "alog",
-    "sample_lib",
     "yaml"
+  ],
+  "sample_lib.submod1": [
+    "numpy"
+  ],
+  "sample_lib.submod2": [
+    "alog"
   ]
 }
