@@ -1,0 +1,10 @@
+{
+  "sample_lib.submod1": [
+    "numpy",
+    "sample_lib"
+  ],
+  "sample_lib.submod2": [
+    "alog",
+    "sample_lib"
+  ]
+}

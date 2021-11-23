@@ -7,6 +7,7 @@ through import statements
 from types import ModuleType
 from typing import Dict, List, Optional
 import importlib
+import inspect
 import json
 import os
 import re
@@ -41,16 +42,51 @@ _module_to_pkg = None
 _pkg_version_expr = re.compile("-[0-9]")
 _pkg_name_expr = re.compile("^Name: ([^\s]+)")
 
+# Global mapping of filenames for static tracking files for individual modules
+_static_trackers = {}
 
-## Utils #######################################################################
+## Public ######################################################################
+
+def set_static_tracker(fname: Optional[str] = None):
+    """This call initializes a static tracking file for the calling module. If
+    a fname is given, that file will be used explicitly. If not, a filename will
+    be deduced based on the path to the calling module.
+    """
+    # Get a handle to the module that is calling this function
+    calling_package = _get_calling_package()
+    assert calling_package is not None, "Degenerate call stack with no wcalling module"
+    assert hasattr(calling_package, "__name__"), f"Calling module has no __name__"
+
+    # Figure out the filename if not given
+    if fname is None:
+        assert hasattr(
+            calling_package, "__file__"
+        ), f"Cannot use default static tracker for module {calling_package.__name__} with no __file__"
+        fname = os.path.realpath(
+            os.path.join(
+                os.path.dirname(calling_package.__file__),
+                "__static_import_tracker__.json",
+            ),
+        )
+
+    # Add the filename to the global mapping with the
+    global _static_trackers
+    _static_trackers[calling_package.__name__] = fname
+
 
 def import_module(name: str, package: Optional[str] = None) -> ModuleType:
     """Import a module by name and keep track of the changes in the global
     modules dict
     """
+
     # If this module is already imported, just return it
     if name in sys.modules:
         return sys.modules[name]
+
+    # If not populating the static tracker (PROACTIVE or LAZY mode), load it
+    # from file if available
+    if _import_mode in [PROACTIVE, LAZY]:
+        _load_static_tracker()
 
     # If performing a PROACTIVE import, import directly and return
     if _import_mode == PROACTIVE:
@@ -145,6 +181,18 @@ def _track_deps(name: str, package: Optional[str] = None):
     global _module_dep_mapping
     _module_dep_mapping.update(deps)
 
+    # If configured, add the results to the static tracking file
+    calling_package = _get_calling_package()
+    static_tracker = _static_trackers.get(calling_package.__name__)
+    if static_tracker is not None:
+        static_content = {}
+        if os.path.exists(static_tracker):
+            with open(static_tracker, "r") as handle:
+                static_content = json.load(handle)
+        static_content.update(deps)
+        with open(static_tracker, "w") as handle:
+            handle.write(json.dumps(static_content, indent=2))
+
 
 def _map_modules_to_package_names():
     """Look for any information we can get to map from the name of the imported
@@ -199,3 +247,31 @@ def _map_modules_to_package_names():
                         modules_to_package_names.setdefault(modname, set()).add(package_name)
 
     return modules_to_package_names
+
+
+def _get_calling_package() -> ModuleType:
+    """Get a handle to the base package for the module that is calling this
+    library. This will search through the stack to find the first module outside
+    of this library.
+    """
+    for frame in inspect.stack():
+        mod = sys.modules[frame.frame.f_globals["__name__"]]
+        if mod.__package__ != sys.modules[__name__].__package__:
+            return sys.modules[mod.__package__]
+    assert False, "Degenerate stack with no parent module"
+
+
+def _load_static_tracker():
+    """If configured, load static tracker information for the given package"""
+    calling_package = _get_calling_package()
+    static_tracker = _static_trackers.get(calling_package.__name__)
+    if static_tracker is not None:
+        if not os.path.isfile(static_tracker):
+            warnings.warn(f"Static tracking not initialized for [{calling_package.__name__}]. " + \
+                f"If you are the maintainer, please run with {MODE_ENV_VAR}={TRACKING} " + \
+                "and commit the resulting file. If you are a user, please file a bug " + \
+                "report with the library maintainers.")
+            return
+        with open(static_tracker, "r") as handle:
+            global _module_dep_mapping
+            _module_dep_mapping.update(json.load(handle))
