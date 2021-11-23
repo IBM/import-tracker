@@ -161,6 +161,7 @@ def _track_deps(name: str, package: Optional[str] = None):
     module. It does this by launching a subprocess to import that dependency in
     isolation and merges the reported results into the global mapping.
     """
+
     # Run this package as a subprocess and collect the results
     cmd = "{} -m {} --name {}".format(
         sys.executable,
@@ -257,7 +258,8 @@ def _get_calling_package() -> ModuleType:
     for frame in inspect.stack():
         mod = sys.modules[frame.frame.f_globals["__name__"]]
         if mod.__package__ != sys.modules[__name__].__package__:
-            return sys.modules[mod.__package__]
+            # Unwrap the package name to the base package
+            return sys.modules[mod.__package__.split(".")[0]]
     assert False, "Degenerate stack with no parent module"
 
 

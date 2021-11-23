@@ -6,5 +6,10 @@
   "sample_lib.submod2": [
     "alog",
     "sample_lib"
+  ],
+  "sample_lib.nested.submod3": [
+    "alog",
+    "sample_lib",
+    "yaml"
   ]
 }
