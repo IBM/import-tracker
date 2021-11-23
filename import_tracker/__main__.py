@@ -65,8 +65,13 @@ def main():
     # Do the import
     imported = importlib.import_module(args.name, package=args.package)
 
-    # Get the set of non-standard modules after the import
-    print(json.dumps({imported.__name__: sorted(list(_get_non_std_modules()))}, indent=args.indent))
+    # Get the set of non-standard modules after the import and filter out any
+    # modules that are parents of the target module itself
+    parent_mod_name = imported.__name__.split(".")[0]
+    module_deps = sorted(list(filter(lambda mod: mod != parent_mod_name, _get_non_std_modules())))
+
+    # Print out the json dump
+    print(json.dumps({imported.__name__: sorted(list(module_deps))}, indent=args.indent))
 
 if __name__ == "__main__":
     main()
