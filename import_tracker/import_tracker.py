@@ -163,7 +163,7 @@ def _track_deps(name: str, package: Optional[str] = None):
     """
 
     # Run this package as a subprocess and collect the results
-    cmd = "{} -m {} --name {}".format(
+    cmd = "{} -W ignore -m {} --name {}".format(
         sys.executable,
         sys.modules[__name__].__package__,
         name,
