@@ -2,3 +2,5 @@
 numpy>=1.21.4
 # submod2
 alchemy-logging>=1.0.3
+# nested.submod3
+PyYaml>=6.0
