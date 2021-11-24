@@ -16,11 +16,14 @@ import subprocess
 import sys
 import warnings
 
+# Local
+from .lazy_import_errors import lazy_import_errors
 
 ## Public Globals ##############################################################
 
 # Possible import modes
 LAZY = "LAZY"
+BEST_EFFORT = "BEST_EFFORT"
 PROACTIVE = "PROACTIVE"
 TRACKING = "TRACKING"
 
@@ -30,7 +33,7 @@ MODE_ENV_VAR = "IMPORT_TRACKER_MODE"
 ## Impl Globals ################################################################
 
 # The configured version. This defaults to lazy importing.
-_import_mode = os.environ.get(MODE_ENV_VAR, LAZY)
+_import_mode = os.environ.get(MODE_ENV_VAR, BEST_EFFORT)
 
 # The global mapping from modules to dependencies
 _module_dep_mapping = {}
@@ -83,14 +86,19 @@ def import_module(name: str, package: Optional[str] = None) -> ModuleType:
     if name in sys.modules:
         return sys.modules[name]
 
-    # If not populating the static tracker (PROACTIVE or LAZY mode), load it
-    # from file if available
-    if _import_mode in [PROACTIVE, LAZY]:
+    # If not running in TRACKING mode, load the static tracker if available
+    if _import_mode in [PROACTIVE, LAZY, BEST_EFFORT]:
         _load_static_tracker()
 
     # If performing a PROACTIVE import, import directly and return
     if _import_mode == PROACTIVE:
         return importlib.import_module(name, package)
+
+    # If performing a BEST_EFFORT import, do the import, but wrap it with lazy
+    # error semantics
+    elif _import_mode == BEST_EFFORT:
+        with lazy_import_errors():
+            return importlib.import_module(name, package)
 
     # If we're doing a TRACKING import. In this case, we're going to perform the
     # the tracking in a subprocess and then return a lazy importer
@@ -105,7 +113,6 @@ def get_required_imports(name: str) -> List[str]:
     """Get the set of modules that are required for the given module by name. If
     the module is not known, ImportError is raised
     """
-    # TODO: If module not found, look in static module mapping
     if name not in _module_dep_mapping:
         raise ImportError(f"Cannot get required imports for untracked module [{name}]")
     return _module_dep_mapping[name]
