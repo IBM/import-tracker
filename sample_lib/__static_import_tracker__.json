@@ -4,7 +4,8 @@
     "yaml"
   ],
   "sample_lib.submod1": [
-    "numpy"
+    "numpy",
+    "sample_lib_conditional_deps"
   ],
   "sample_lib.submod2": [
     "alog"
