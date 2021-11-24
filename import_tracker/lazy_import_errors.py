@@ -8,6 +8,7 @@ used.
 from contextlib import contextmanager
 import importlib.abc
 import importlib.util
+import inspect
 import sys
 
 ## Public ######################################################################
@@ -53,6 +54,13 @@ class _LazyMetaFinder(importlib.abc.MetaPathFinder):
         lazy ModuleNotFoundError that will trigger when the module is used
         rather than when it is imported.
         """
+
+        # Ok, time for some magic. Without this line, the first call to
+        # _get_calling_package in import_tracker will trigger the lazy getattr
+        # and all of the laziness of the errors will be lost. With this line, it
+        # seems that some bootstrapping in the inspect module is done at the
+        # right time and that error doesn't show up. ¯\_(ツ)_/¯
+        inspect.stack()
 
         # Set up a lazy loader that wraps the Loader that defers the error to
         # exec_module time
