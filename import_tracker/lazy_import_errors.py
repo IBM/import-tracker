@@ -55,12 +55,35 @@ class _LazyMetaFinder(importlib.abc.MetaPathFinder):
         rather than when it is imported.
         """
 
-        # Ok, time for some magic. Without this line, the first call to
-        # _get_calling_package in import_tracker will trigger the lazy getattr
-        # and all of the laziness of the errors will be lost. With this line, it
-        # seems that some bootstrapping in the inspect module is done at the
-        # right time and that error doesn't show up. ¯\_(ツ)_/¯
-        inspect.stack()
+        # Figure out the module that is doing the import and the module that is
+        # calling import_module
+        stack = inspect.stack()
+        this_module = sys.modules[__name__].__package__.split(".")[0]
+        importing_pkg = None
+        calling_pkg = None
+        non_importlib_mods = list(filter(lambda x: x != "importlib", [
+            frame.frame.f_globals["__name__"].split(".")[0]
+            for frame in stack
+        ]))
+        for i, pkgname in enumerate(non_importlib_mods):
+            if pkgname == "importlib":
+                continue
+
+            # If this is the first hit beyond this module, it's the module doing
+            # the import
+            if importing_pkg is None and pkgname != this_module:
+                importing_pkg = pkgname
+
+            # If this is the first non-initial hit that does match this module
+            # then the previous module is the one calling import_module
+            if i > 0 and calling_pkg is None and pkgname == this_module:
+                calling_pkg = non_importlib_mods[i-1]
+
+        assert None not in [importing_pkg, calling_pkg], "Could not determine calling and importing pkg"
+
+        # If the two are not the same, don't mask this with lazy errors
+        if importing_pkg != calling_pkg:
+            return None
 
         # Set up a lazy loader that wraps the Loader that defers the error to
         # exec_module time
