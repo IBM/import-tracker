@@ -18,7 +18,7 @@ def test_lazy_import_sad_package():
         foobarbaz.foo()
 
 def test_lazy_import_happy_package_with_sad_optionals():
-    """This test uses `numpy` which has several "optipnal" dependencies in order
+    """This test uses `numpy` which has several "optional" dependencies in order
     to support backwards compatibility. We need to ensure that these usecases
     are supported such that the downstream libs do not get confused.
 
@@ -45,7 +45,7 @@ def test_lazy_import_tracker_sad_package():
         foobarbaz.foo()
 
 def test_lazy_import_tracker_happy_package_with_sad_optionals():
-    """This test uses `numpy` which has several "optipnal" dependencies in order
+    """This test uses `numpy` which has several "optional" dependencies in order
     to support backwards compatibility. We need to ensure that these usecases
     are supported such that the downstream libs do not get confused.
 
