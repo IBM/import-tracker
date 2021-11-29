@@ -43,7 +43,7 @@ _module_to_pkg = None
 
 # Exprs for finding module names
 _pkg_version_expr = re.compile("-[0-9]")
-_pkg_name_expr = re.compile("^Name: ([^\s]+)")
+_pkg_name_expr = re.compile("^Name: ([^ \t\n]+)")
 
 # Global mapping of filenames for static tracking files for individual modules
 _static_trackers = {}
@@ -262,11 +262,12 @@ def _get_calling_package() -> ModuleType:
     library. This will search through the stack to find the first module outside
     of this library.
     """
+    this_pkg = sys.modules[__name__].__name__.split(".")[0]
     for frame in inspect.stack():
         mod = sys.modules[frame.frame.f_globals["__name__"]]
-        if mod.__package__ != sys.modules[__name__].__package__:
-            # Unwrap the package name to the base package
-            return sys.modules[mod.__package__.split(".")[0]]
+        mod_pkg = mod.__name__.split(".")[0]
+        if mod_pkg != this_pkg:
+            return sys.modules[mod_pkg]
     assert False, "Degenerate stack with no parent module"
 
 

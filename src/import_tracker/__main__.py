@@ -20,12 +20,18 @@ import sys
 # The path where global modules are found
 _std_lib_dir = os.path.realpath(os.path.dirname(os.__file__))
 
+_has_splittable_file_attr = lambda mod: hasattr(mod, "__file__") and isinstance(mod.__file__, str)
 
 def _get_import_parent_path(mod) -> str:
     """Get the parent directory of the given module"""
     # Some standard libs have no __file__ attribute
     if not hasattr(mod, "__file__"):
         return _std_lib_dir
+    # In some cases, we might have __file__ set, but it may be some other value; for the case
+    # of namespace packages, this might be set to None, which is the default value.
+    # ref: https://docs.python.org/3/library/importlib.html#importlib.machinery.ModuleSpec.origin
+    if not _has_splittable_file_attr(mod):
+        return None
 
     # If the module comes from an __init__, we need to pop two levels off
     file_path = mod.__file__
@@ -44,6 +50,7 @@ def _get_non_std_modules() -> Set[str]:
         if not mod_name.startswith("_")
         and "." not in mod_name
         and _get_import_parent_path(mod) != _std_lib_dir
+        and _has_splittable_file_attr(mod)
         and os.path.splitext(mod.__file__)[-1] not in [".so", ".dylib"]
         and mod_name.split(".")[0] != this_module
     }
@@ -68,7 +75,8 @@ def main():
     # Get the set of non-standard modules after the import and filter out any
     # modules that are parents of the target module itself
     parent_mod_name = imported.__name__.split(".")[0]
-    module_deps = sorted(list(filter(lambda mod: mod != parent_mod_name, _get_non_std_modules())))
+    module_deps = sorted(list(filter(lambda mod: mod != parent_mod_name and mod is not None,
+        _get_non_std_modules())))
 
     # Print out the json dump
     print(json.dumps({imported.__name__: sorted(list(module_deps))}, indent=args.indent))
