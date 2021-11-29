@@ -4,3 +4,6 @@ numpy>=1.21.4
 alchemy-logging>=1.0.3
 # nested.submod3
 PyYaml>=6.0
+# Testing
+pytest>=6.2.5
+pytest-cov>=3.0.0
