@@ -43,7 +43,7 @@ _module_to_pkg = None
 
 # Exprs for finding module names
 _pkg_version_expr = re.compile("-[0-9]")
-_pkg_name_expr = re.compile("^Name: ([^\s]+)")
+_pkg_name_expr = re.compile("^Name: ([^ \t\n]+)")
 
 # Global mapping of filenames for static tracking files for individual modules
 _static_trackers = {}
