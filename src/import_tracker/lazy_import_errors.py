@@ -6,6 +6,7 @@ used.
 
 # Standard
 from contextlib import contextmanager
+from types import ModuleType
 import importlib.abc
 import importlib.util
 import inspect
@@ -27,19 +28,31 @@ def lazy_import_errors():
 
 ## Implementation Details ######################################################
 
+
+class _LazyErrorModule(ModuleType):
+    """This module is a lazy error thrower. It is created when the module cannot
+    be found so that import errors are deferred until attribute access.
+    """
+    def __init__(self, name: str):
+        super().__init__(name)
+        self.__path__ = None
+
+    def __getattr__(self, name: str):
+        raise ModuleNotFoundError(f"No module named '{self.__name__}'")
+
+
 class _LazyErrorLoader(importlib.abc.Loader):
     """This "loader" can be used with a MetaFinder to catch not-found modules
     and raise a ModuleNotFound error lazily when the module is used rather than
     at import time.
     """
-    def __init__(self, fullname):
-        self.__fullname = fullname
-
     def create_module(self, spec):
-        return None
+        return _LazyErrorModule(spec.name)
 
-    def exec_module(self, spec):
-        raise ModuleNotFoundError(f"No module named '{self.__fullname}'")
+    def exec_module(self, *_, **__):
+        """Nothing to do here because the errors will be thrown by the module
+        created in create_module
+        """
 
 
 class _LazyMetaFinder(importlib.abc.MetaPathFinder):
@@ -81,12 +94,11 @@ class _LazyMetaFinder(importlib.abc.MetaPathFinder):
 
         # Set up a lazy loader that wraps the Loader that defers the error to
         # exec_module time
-        loader = _LazyErrorLoader(fullname)
-        lazy_loader = importlib.util.LazyLoader(loader)
+        loader = _LazyErrorLoader()
 
         # Create a spec from this loader so that it acts at import-time like it
         # loaded correctly
-        return importlib.util.spec_from_loader(fullname, lazy_loader)
+        return importlib.util.spec_from_loader(fullname, loader)
 
     ## Implementation Details ######################################################
     @staticmethod
