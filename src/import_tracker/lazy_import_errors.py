@@ -78,13 +78,12 @@ class _LazyMetaFinder(importlib.abc.MetaPathFinder):
         rather than when it is imported.
         """
         importing_pkg = None
-        non_importlib_mods = self._get_non_import_modules()
-
-        for i, pkgname in enumerate(non_importlib_mods):
+        for pkgname in self._get_non_import_modules():
             # If this is the first hit beyond this module, it's the module doing
             # the import
             if importing_pkg is None and pkgname != self.this_module:
                 importing_pkg = pkgname
+                break
 
         assert None not in [importing_pkg, self.calling_pkg], "Could not determine calling and importing pkg"
 
