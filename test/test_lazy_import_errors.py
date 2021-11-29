@@ -12,8 +12,10 @@ def test_lazy_import_sad_package():
         foobarbaz.foo()
 
 def test_lazy_import_happy_package_with_sad_optionals():
+    standard_pickle = importlib.import_module("pickle")
     with import_tracker.lazy_import_errors():
-        importlib.import_module('numpy')
+        numpy = importlib.import_module('numpy')
+        assert numpy.compat.py3k.pickle is standard_pickle
 
 ########################## Tests for Module Imports via Import Tracker ############################
 def test_lazy_import_tracker_sad_package():
@@ -22,4 +24,6 @@ def test_lazy_import_tracker_sad_package():
         foobarbaz.foo()
 
 def test_lazy_import_tracker_happy_package_with_sad_optionals():
-    import_tracker.import_module('numpy')
+    standard_pickle = importlib.import_module("pickle")
+    numpy = import_tracker.import_module('numpy')
+    assert numpy.compat.py3k.pickle is standard_pickle
