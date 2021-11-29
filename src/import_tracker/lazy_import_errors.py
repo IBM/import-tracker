@@ -56,9 +56,7 @@ class _LazyMetaFinder(importlib.abc.MetaPathFinder):
             # then the previous module is the one calling import_module
             if self.calling_pkg is None and pkgname not in [self.this_module, 'contextlib']:
                 self.calling_pkg = pkgname
-        print('Initializer non import lib mods: {}'.format(non_importlib_mods))
         assert self.calling_pkg is not None
-
 
     def find_spec(self, fullname, path, *args, **kwargs):
         """Since this meta finder is the last priority, it will only be used for
@@ -74,14 +72,6 @@ class _LazyMetaFinder(importlib.abc.MetaPathFinder):
             # the import
             if importing_pkg is None and pkgname != self.this_module:
                 importing_pkg = pkgname
-
-        # DEBUG
-        # print('Non importlib mods')
-        # print(non_importlib_mods)
-        # print('Importing package: {}'.format(importing_pkg))
-        # print('Calling package: {}'.format(self.calling_pkg))
-        # print('This module: {}'.format(self.this_module))
-        # print('Full name: {}\n\n'.format(fullname))
 
         assert None not in [importing_pkg, self.calling_pkg], "Could not determine calling and importing pkg"
 
