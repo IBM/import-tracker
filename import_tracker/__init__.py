@@ -7,6 +7,7 @@ tracks their third party deps
 from .import_tracker import (
     BEST_EFFORT,
     LAZY,
+    MODE_ENV_VAR,
     PROACTIVE,
     TRACKING,
     default_import_mode,

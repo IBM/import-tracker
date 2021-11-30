@@ -14,7 +14,7 @@ import import_tracker
 
 
 ######################## Tests for Direct Invocation of the Context Manager #######################
-def test_lazy_import_sad_package(reset_sys_modules):
+def test_lazy_import_sad_package():
     """This test makes sure that the ModuleNotFoundError is not raised for an
     unknown module on import, but that it is raised on attribute access.
 
@@ -28,7 +28,7 @@ def test_lazy_import_sad_package(reset_sys_modules):
         foobarbaz.foo()
 
 
-def test_lazy_import_happy_package_with_sad_optionals(reset_sys_modules):
+def test_lazy_import_happy_package_with_sad_optionals():
     """This test ensures that a library with traditional try/except conditional
     dependencies works as expected.
 

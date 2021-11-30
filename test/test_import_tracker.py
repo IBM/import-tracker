@@ -9,7 +9,7 @@ import os
 import pytest
 
 # Local
-from test.helpers import reset_sys_modules
+from test.helpers import BEST_EFFORT_MODE, reset_sys_modules
 import import_tracker
 
 #########################
@@ -71,7 +71,7 @@ def test_default_import_mode_validation():
 ###################
 
 
-def test_import_module_unknown_import(reset_sys_modules):
+def test_import_module_unknown_import(BEST_EFFORT_MODE):
     """This test makes sure that the ModuleNotFoundError is not raised for an
     unknown module on import, but that it is raised on attribute access.
 
@@ -83,7 +83,7 @@ def test_import_module_unknown_import(reset_sys_modules):
         foobarbaz.foo()
 
 
-def test_import_module_downstream_conditional_deps(reset_sys_modules):
+def test_import_module_downstream_conditional_deps(BEST_EFFORT_MODE):
     """This test ensures that a library with traditional try/except conditional
     dependencies works as expected.
 
