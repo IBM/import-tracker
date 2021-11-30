@@ -4,14 +4,14 @@ need to make sure that this doesn't break.
 """
 
 try:
-    import tensorflow as tf
-    HAS_TF = True
+    import foobar as fb
+    HAS_FB = True
 except ModuleNotFoundError:
-    HAS_TF = False
+    HAS_FB = False
 
 
-def has_tf():
-    if HAS_TF:
-        print("We've got the flow!")
+def has_fb():
+    if HAS_FB:
+        print("We've got the foo!")
     else:
-        print("No flow here")
+        print("No foo here")

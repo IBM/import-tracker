@@ -24,15 +24,11 @@ def test_lazy_import_tracker_sad_package(reset_sys_modules):
         foobarbaz.foo()
 
 def test_lazy_import_tracker_happy_package_with_sad_optionals(reset_sys_modules):
-    """This test uses `numpy` which has several "optional" dependencies in order
-    to support backwards compatibility. We need to ensure that these usecases
-    are supported such that the downstream libs do not get confused.
+    """This test ensures that a library with traditional try/except conditional
+    dependencies works as expected.
 
     This version tests that the import works when imported via
     import_tracker.import_module
-
-    CITE: https://github.com/numpy/numpy/blob/main/numpy/compat/py3k.py#L24
     """
-    import pickle
-    numpy = import_tracker.import_module("numpy")
-    assert numpy.compat.py3k.pickle is pickle
+    conditional_deps = import_tracker.import_module("conditional_deps")
+    assert not conditional_deps.mod.HAS_FB
