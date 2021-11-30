@@ -72,7 +72,7 @@ def set_static_tracker(fname: Optional[str] = None):
             ),
         )
 
-    # Map the calliing package name to the final file name in the global mapping of tracked modules
+    # Map the calling package name to the final file name in the global mapping of tracked modules
     global _static_trackers
     _static_trackers[calling_package.__name__] = fname
 
