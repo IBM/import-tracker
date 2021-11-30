@@ -213,7 +213,10 @@ def _track_deps(name: str, package: Optional[str] = None):
     res = subprocess.run(
         shlex.split(cmd),
         stdout=subprocess.PIPE,
-        env={MODE_ENV_VAR: LAZY},
+        env={
+            MODE_ENV_VAR: LAZY,
+            "PYTHONPATH": os.environ.get("PYTHONPATH", ""),
+        },
     )
     assert res.returncode == 0, f"Failed to track {name}"
     deps = json.loads(res.stdout)
