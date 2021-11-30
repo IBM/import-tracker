@@ -11,7 +11,7 @@ In order to integrate `Import Tracker` into your project, you'll generally need 
 
 
 ### Running Import Tracker
-Once you have integrated `Import Tracker` into your project, you can leverage it in your project. In general, the functionality of module imports through `Import Tracker` are controlled by setting the `IMPORT_TRACKER_MODE` environment variable to one of the following values. 
+Once you have integrated `Import Tracker` into your project, you can start leveraging it immediately. In general, the functionality of module imports through `Import Tracker` are controlled by setting the `IMPORT_TRACKER_MODE` environment variable to one of the following values. 
 
 - `LAZY`: When a module is imported, build a lazy module wrapper that will *only* try to import the module if an attribute of the wrapped module is accessed.
 - `BEST_EFFORT`<sup>[†](#footnote)</sup>: When a module is imported, actually do the import, but wrap it with lazy error semantics.
