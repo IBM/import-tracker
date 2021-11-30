@@ -57,7 +57,7 @@ def set_static_tracker(fname: Optional[str] = None):
     """
     # Get a handle to the module that is calling this function
     calling_package = _get_calling_package()
-    assert calling_package is not None, "Degenerate call stack with no wcalling module"
+    assert calling_package is not None, "Degenerate call stack with no calling module"
     assert hasattr(calling_package, "__name__"), f"Calling module has no __name__"
 
     # Figure out the filename if not given
@@ -72,7 +72,7 @@ def set_static_tracker(fname: Optional[str] = None):
             ),
         )
 
-    # Add the filename to the global mapping with the
+    # Map the calliing package name to the final file name in the global mapping of tracked modules
     global _static_trackers
     _static_trackers[calling_package.__name__] = fname
 
