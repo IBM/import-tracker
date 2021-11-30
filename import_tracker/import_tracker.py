@@ -4,6 +4,7 @@ through import statements
 """
 
 # Standard
+from contextlib import contextmanager
 from types import ModuleType
 from typing import Dict, List, Optional
 import importlib
@@ -32,8 +33,10 @@ MODE_ENV_VAR = "IMPORT_TRACKER_MODE"
 
 ## Impl Globals ################################################################
 
-# The configured version. This defaults to lazy importing.
-_import_mode = os.environ.get(MODE_ENV_VAR, BEST_EFFORT)
+# This global holds the current default import mode when not provided in the
+# environment. This may be updated with the default_import_mode contextmanager.
+_default_import_mode = BEST_EFFORT
+_all_import_modes = [LAZY, BEST_EFFORT, PROACTIVE, TRACKING]
 
 # The global mapping from modules to dependencies
 _module_dep_mapping = {}
@@ -87,23 +90,26 @@ def import_module(name: str, package: Optional[str] = None) -> ModuleType:
     if name in sys.modules:
         return sys.modules[name]
 
+    # Get the current import mode
+    import_mode = _get_import_mode()
+
     # If not running in TRACKING mode, load the static tracker if available
-    if _import_mode in [PROACTIVE, LAZY, BEST_EFFORT]:
+    if import_mode in [PROACTIVE, LAZY, BEST_EFFORT]:
         _load_static_tracker()
 
     # If performing a PROACTIVE import, import directly and return
-    if _import_mode == PROACTIVE:
+    if import_mode == PROACTIVE:
         return importlib.import_module(name, package)
 
     # If performing a BEST_EFFORT import, do the import, but wrap it with lazy
     # error semantics
-    elif _import_mode == BEST_EFFORT:
+    elif import_mode == BEST_EFFORT:
         with lazy_import_errors():
             return importlib.import_module(name, package)
 
     # If we're doing a TRACKING import. In this case, we're going to perform the
     # the tracking in a subprocess and then return a lazy importer
-    if _import_mode == TRACKING:
+    if import_mode == TRACKING:
         _track_deps(name, package)
 
     # For either LAZY or TRACKING, we return a Lazy Importer
@@ -139,7 +145,32 @@ def get_required_packages(name: str) -> List[str]:
     return sorted(list(required_pkgs))
 
 
+@contextmanager
+def default_import_mode(import_mode: str):
+    """This contextmanager will set the default import mode and then reset it on
+    exit.
+
+    Args:
+        import_mode:  str
+            The import mode to set it to inside of the context
+    """
+    if import_mode not in _all_import_modes:
+        raise ValueError(
+            f"Invalid import mode <{import_mode}>. Options are: {_all_import_modes}"
+        )
+    global _default_import_mode
+    previous_mode = _default_import_mode
+    _default_import_mode = import_mode
+    yield
+    _default_import_mode = previous_mode
+
+
 ## Implementation Details ######################################################
+
+
+def _get_import_mode():
+    """Get the import mode based on the current default and the environment"""
+    return os.environ.get(MODE_ENV_VAR, _default_import_mode)
 
 
 class LazyModule(ModuleType):
