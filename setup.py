@@ -1,7 +1,10 @@
 """A setuptools setup module for import_tracker"""
 
-from setuptools import setup
+# Standard
 import os
+
+# Third Party
+from setuptools import setup
 
 # Read the README to provide the long description
 python_base = os.path.abspath(os.path.dirname(__file__))
@@ -9,14 +12,14 @@ with open(os.path.join(python_base, "README.md"), "r") as handle:
     long_description = handle.read()
 
 # Read version from the env
-version = os.environ.get("PYTHON_RELEASE_VERSION")
-assert version is not None, "Must set PYTHON_RELEASE_VERSION"
+version = os.environ.get("RELEASE_VERSION")
+assert version is not None, "Must set RELEASE_VERSION"
 
 setup(
     name="import_tracker",
     version=version,
     description="A tool for managing dependencies in a modular python "
-        "project by tracking which dependencies are needed by which sub-modules",
+    "project by tracking which dependencies are needed by which sub-modules",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.ibm.com/ghart/import_tracker",

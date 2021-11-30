@@ -20,7 +20,10 @@ import sys
 # The path where global modules are found
 _std_lib_dir = os.path.realpath(os.path.dirname(os.__file__))
 
-_has_splittable_file_attr = lambda mod: hasattr(mod, "__file__") and isinstance(mod.__file__, str)
+_has_splittable_file_attr = lambda mod: hasattr(mod, "__file__") and isinstance(
+    mod.__file__, str
+)
+
 
 def _get_import_parent_path(mod) -> str:
     """Get the parent directory of the given module"""
@@ -65,8 +68,12 @@ def main():
     # Set up the args
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--name", "-n", help="Module name to import", required=True)
-    parser.add_argument("--package", "-p", help="Package for relative imports", default=None)
-    parser.add_argument("--indent", "-i", type=int, help="Indent for json printing", default=None)
+    parser.add_argument(
+        "--package", "-p", help="Package for relative imports", default=None
+    )
+    parser.add_argument(
+        "--indent", "-i", type=int, help="Indent for json printing", default=None
+    )
     args = parser.parse_args()
 
     # Do the import
@@ -75,11 +82,20 @@ def main():
     # Get the set of non-standard modules after the import and filter out any
     # modules that are parents of the target module itself
     parent_mod_name = imported.__name__.split(".")[0]
-    module_deps = sorted(list(filter(lambda mod: mod != parent_mod_name and mod is not None,
-        _get_non_std_modules())))
+    module_deps = sorted(
+        list(
+            filter(
+                lambda mod: mod != parent_mod_name and mod is not None,
+                _get_non_std_modules(),
+            )
+        )
+    )
 
     # Print out the json dump
-    print(json.dumps({imported.__name__: sorted(list(module_deps))}, indent=args.indent))
+    print(
+        json.dumps({imported.__name__: sorted(list(module_deps))}, indent=args.indent)
+    )
+
 
 if __name__ == "__main__":
     main()

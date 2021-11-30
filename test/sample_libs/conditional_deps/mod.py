@@ -4,7 +4,9 @@ need to make sure that this doesn't break.
 """
 
 try:
+    # Third Party
     import foobar as fb
+
     HAS_FB = True
 except ModuleNotFoundError:
     HAS_FB = False

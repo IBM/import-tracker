@@ -50,6 +50,7 @@ _static_trackers = {}
 
 ## Public ######################################################################
 
+
 def set_static_tracker(fname: Optional[str] = None):
     """This call initializes a static tracking file for the calling module. If
     a fname is given, that file will be used explicitly. If not, a filename will
@@ -158,7 +159,8 @@ class LazyModule(ModuleType):
         """
         if self.__wrapped_module is None:
             self.__wrapped_module = importlib.import_module(
-                self.__name, self.__package,
+                self.__name,
+                self.__package,
             )
         return getattr(self.__wrapped_module, name)
 
@@ -243,16 +245,19 @@ def _map_modules_to_package_names():
                             lambda mn: (
                                 mn
                                 and mn != "__pycache__"
-                                and os.path.splitext(mn)[-1] not in [".pth", ".dist-info", ".egg-info"]
+                                and os.path.splitext(mn)[-1]
+                                not in [".pth", ".dist-info", ".egg-info"]
                                 and "." not in mn
                             ),
                             {
                                 line.split("/")[0].split(",")[0].strip()
                                 for line in handle.readlines()
-                            }
-                        )
+                            },
+                        ),
                     ):
-                        modules_to_package_names.setdefault(modname, set()).add(package_name)
+                        modules_to_package_names.setdefault(modname, set()).add(
+                            package_name
+                        )
 
     return modules_to_package_names
 
@@ -277,10 +282,12 @@ def _load_static_tracker():
     static_tracker = _static_trackers.get(calling_package.__name__)
     if static_tracker is not None:
         if not os.path.isfile(static_tracker):
-            warnings.warn(f"Static tracking not initialized for [{calling_package.__name__}]. " + \
-                f"If you are the maintainer, please run with {MODE_ENV_VAR}={TRACKING} " + \
-                "and commit the resulting file. If you are a user, please file a bug " + \
-                "report with the library maintainers.")
+            warnings.warn(
+                f"Static tracking not initialized for [{calling_package.__name__}]. "
+                + f"If you are the maintainer, please run with {MODE_ENV_VAR}={TRACKING} "
+                + "and commit the resulting file. If you are a user, please file a bug "
+                + "report with the library maintainers."
+            )
             return
         with open(static_tracker, "r") as handle:
             global _module_dep_mapping
