@@ -12,8 +12,8 @@ with open(os.path.join(python_base, "README.md"), "r") as handle:
     long_description = handle.read()
 
 # Read version from the env
-version = os.environ.get("PYTHON_RELEASE_VERSION")
-assert version is not None, "Must set PYTHON_RELEASE_VERSION"
+version = os.environ.get("RELEASE_VERSION")
+assert version is not None, "Must set RELEASE_VERSION"
 
 setup(
     name="import_tracker",
