@@ -4,7 +4,9 @@ Sample sub-module that requires numpy
 
 # Third Party
 import numpy
-import sample_lib_conditional_deps
+
+# Local
+import conditional_deps
 
 
 def make_arr(thing):
@@ -12,4 +14,4 @@ def make_arr(thing):
 
 
 def check_tf():
-    sample_lib_conditional_deps.mod.has_tf()
+    conditional_deps.mod.has_tf()
