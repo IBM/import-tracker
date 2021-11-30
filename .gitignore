@@ -1,4 +1,7 @@
 .coverage
 htmlcov
 __pycache__
+*.egg-info/
+dist/
+.DS_Store
 .pytest_cache
