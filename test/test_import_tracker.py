@@ -11,7 +11,13 @@ import sys
 import pytest
 
 # Local
-from test.helpers import BEST_EFFORT_MODE, LAZY_MODE, reset_sys_modules
+from test.helpers import (
+    BEST_EFFORT_MODE,
+    LAZY_MODE,
+    PROACTIVE_MODE,
+    TRACKING_MODE,
+    reset_sys_modules,
+)
 import import_tracker
 
 ## default_import_mode #########################################################
@@ -138,4 +144,26 @@ def test_import_module_lazy_downstream_use(LAZY_MODE):
     submod3 = import_tracker.import_module(mod_name)
     assert mod_name not in sys.modules
     submod3.json_to_yamls('{"foo": 1}')
+    assert mod_name in sys.modules
+
+
+###############
+## PROACTIVE ##
+###############
+
+
+def test_import_module_proactive_direct_use(PROACTIVE_MODE):
+    """Test that a proactively imported module imports immediately"""
+    assert "alog" not in sys.modules
+    alog = import_tracker.import_module("alog")
+    assert "alog" in sys.modules
+
+
+def test_import_module_proactive_downstream_use(PROACTIVE_MODE):
+    """Test that a proactively imported module in a downstream is imported
+    immediately
+    """
+    mod_name = "sample_lib.nested.submod3"
+    assert mod_name not in sys.modules
+    submod3 = import_tracker.import_module(mod_name)
     assert mod_name in sys.modules
