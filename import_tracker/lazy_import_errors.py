@@ -14,6 +14,7 @@ import sys
 
 ## Public ######################################################################
 
+
 @contextmanager
 def lazy_import_errors():
     """This context manager injects lazy loading as the default loading method
@@ -26,6 +27,7 @@ def lazy_import_errors():
     finally:
         sys.meta_path.pop()
 
+
 ## Implementation Details ######################################################
 
 
@@ -33,6 +35,7 @@ class _LazyErrorModule(ModuleType):
     """This module is a lazy error thrower. It is created when the module cannot
     be found so that import errors are deferred until attribute access.
     """
+
     def __init__(self, name: str):
         super().__init__(name)
         self.__path__ = None
@@ -46,6 +49,7 @@ class _LazyErrorLoader(importlib.abc.Loader):
     and raise a ModuleNotFound error lazily when the module is used rather than
     at import time.
     """
+
     def create_module(self, spec):
         return _LazyErrorModule(spec.name)
 
@@ -67,7 +71,10 @@ class _LazyMetaFinder(importlib.abc.MetaPathFinder):
         for pkgname in non_importlib_mods:
             # If this is the first non-initial hit that does match this module
             # then the previous module is the one calling import_module
-            if self.calling_pkg is None and pkgname not in [self.this_module, 'contextlib']:
+            if self.calling_pkg is None and pkgname not in [
+                self.this_module,
+                "contextlib",
+            ]:
                 self.calling_pkg = pkgname
         assert self.calling_pkg is not None
 
@@ -85,7 +92,10 @@ class _LazyMetaFinder(importlib.abc.MetaPathFinder):
                 importing_pkg = pkgname
                 break
 
-        assert None not in [importing_pkg, self.calling_pkg], "Could not determine calling and importing pkg"
+        assert None not in [
+            importing_pkg,
+            self.calling_pkg,
+        ], "Could not determine calling and importing pkg"
 
         # If the two are not the same, don't mask this with lazy errors
         if importing_pkg != self.calling_pkg:
@@ -105,8 +115,10 @@ class _LazyMetaFinder(importlib.abc.MetaPathFinder):
         # Figure out the module that is doing the import and the module that is
         # calling import_module
         stack = inspect.stack()
-        non_importlib_mods = list(filter(lambda x: x != "importlib", [
-            frame.frame.f_globals["__name__"].split(".")[0]
-            for frame in stack
-        ]))
+        non_importlib_mods = list(
+            filter(
+                lambda x: x != "importlib",
+                [frame.frame.f_globals["__name__"].split(".")[0] for frame in stack],
+            )
+        )
         return non_importlib_mods

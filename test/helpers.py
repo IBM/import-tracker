@@ -17,7 +17,8 @@ def reset_sys_modules():
     before_keys = list(sys.modules.keys())
     yield
     added_keys = [
-        module_name for module_name in sys.modules.keys()
+        module_name
+        for module_name in sys.modules.keys()
         if module_name not in before_keys
     ]
     for added_key in added_keys:

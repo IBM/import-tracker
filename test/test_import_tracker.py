@@ -12,6 +12,7 @@ import pytest
 from test.helpers import reset_sys_modules
 import import_tracker
 
+
 def test_lazy_import_tracker_sad_package(reset_sys_modules):
     """This test makes sure that the ModuleNotFoundError is not raised for an
     unknown module on import, but that it is raised on attribute access.
@@ -22,6 +23,7 @@ def test_lazy_import_tracker_sad_package(reset_sys_modules):
     foobarbaz = import_tracker.import_module("foobarbaz")
     with pytest.raises(ModuleNotFoundError):
         foobarbaz.foo()
+
 
 def test_lazy_import_tracker_happy_package_with_sad_optionals(reset_sys_modules):
     """This test ensures that a library with traditional try/except conditional

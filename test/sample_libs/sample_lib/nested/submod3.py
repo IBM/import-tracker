@@ -2,10 +2,13 @@
 import json
 
 # Third Party
-import alog
 import yaml
 
+# First Party
+import alog
+
 log = alog.use_channel("SUB3")
+
 
 def yaml_to_json(fname, *args, **kwargs):
     """Yaml file to json string"""

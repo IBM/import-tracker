@@ -12,6 +12,7 @@ import pytest
 from test.helpers import reset_sys_modules
 import import_tracker
 
+
 ######################## Tests for Direct Invocation of the Context Manager #######################
 def test_lazy_import_sad_package(reset_sys_modules):
     """This test makes sure that the ModuleNotFoundError is not raised for an
@@ -21,9 +22,11 @@ def test_lazy_import_sad_package(reset_sys_modules):
     lazy_import_errors.
     """
     with import_tracker.lazy_import_errors():
+        # Third Party
         import foobarbaz
     with pytest.raises(ModuleNotFoundError):
         foobarbaz.foo()
+
 
 def test_lazy_import_happy_package_with_sad_optionals(reset_sys_modules):
     """This test ensures that a library with traditional try/except conditional
@@ -32,7 +35,10 @@ def test_lazy_import_happy_package_with_sad_optionals(reset_sys_modules):
     This version tests that the import works when imported directly, but wrapped
     in lazy_import_errors.
     """
+    # Standard
     import pickle
+
     with import_tracker.lazy_import_errors():
+        # Local
         import conditional_deps
     assert not conditional_deps.mod.HAS_FB
