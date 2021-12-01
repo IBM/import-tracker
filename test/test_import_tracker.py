@@ -72,6 +72,69 @@ def test_default_import_mode_validation():
     )
 
 
+## get_required_imports ########################################################
+
+
+@pytest.mark.parametrize(
+    "mode",
+    [
+        import_tracker.BEST_EFFORT,
+        import_tracker.LAZY,
+        import_tracker.PROACTIVE,
+    ],
+)
+def test_get_required_imports_static_tracker(mode):
+    """Test that get_required_imports returns the right results in all modes
+    that use the static values
+    """
+    with import_tracker.default_import_mode(mode):
+        # Local
+        import sample_lib
+
+        assert set(import_tracker.get_required_imports("sample_lib.submod1")) == {
+            "conditional_deps",
+        }
+        assert set(import_tracker.get_required_imports("sample_lib.submod2")) == {
+            "alog",
+        }
+        assert set(
+            import_tracker.get_required_imports("sample_lib.nested.submod3")
+        ) == {
+            "alog",
+            "yaml",
+        }
+
+
+## get_required_packages #######################################################
+
+
+@pytest.mark.parametrize(
+    "mode",
+    [
+        import_tracker.BEST_EFFORT,
+        import_tracker.LAZY,
+        import_tracker.PROACTIVE,
+    ],
+)
+def test_get_required_packages_static_tracker(mode):
+    """Test that get_required_packages returns the right results in all modes
+    that use the static values
+    """
+    with import_tracker.default_import_mode(mode):
+        # Local
+        import sample_lib
+
+        assert set(import_tracker.get_required_packages("sample_lib.submod2")) == {
+            "alchemy-logging",
+        }
+        assert set(
+            import_tracker.get_required_packages("sample_lib.nested.submod3")
+        ) == {
+            "alchemy-logging",
+            "PyYAML",
+        }
+
+
 ## import_module ###############################################################
 
 #################
@@ -147,6 +210,19 @@ def test_import_module_lazy_downstream_use(LAZY_MODE):
     assert mod_name in sys.modules
 
 
+def test_import_module_lazy_re_import(LAZY_MODE):
+    """Test that once a lazy module has been imported, it's simply returned from
+    a subsequent import_module
+    """
+    assert "alog" not in sys.modules
+    alog = import_tracker.import_module("alog")
+    assert "alog" not in sys.modules
+    alog.use_channel("SOMETHING")
+    assert "alog" in sys.modules
+    alog2 = import_tracker.import_module("alog")
+    assert alog2 is sys.modules["alog"]
+
+
 ###############
 ## PROACTIVE ##
 ###############
@@ -167,3 +243,8 @@ def test_import_module_proactive_downstream_use(PROACTIVE_MODE):
     assert mod_name not in sys.modules
     submod3 = import_tracker.import_module(mod_name)
     assert mod_name in sys.modules
+
+
+##############
+## TRACKING ##
+##############
