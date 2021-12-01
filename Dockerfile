@@ -50,6 +50,7 @@ COPY ./test /src/test
 COPY ./scripts/run_tests.sh /src/scripts/run_tests.sh
 RUN true && \
     ([ "$RELEASE_DRY_RUN" != "true" ] && sleep 90 || true) && \
+    pip cache purge && \
     pip install import_tracker==${RELEASE_VERSION} && \
     ./scripts/run_tests.sh && \
     true
