@@ -7,7 +7,7 @@ on:
     branches: [ main ]
   workflow_dispatch: {}
 jobs:
-  build-3.7:
+  build-37:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -15,7 +15,7 @@ jobs:
         run: docker build . --target=test
         env:
           PYTHON_VERSION: "3.7"
-  build-3.8:
+  build-38:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -23,7 +23,7 @@ jobs:
         run: docker build . --target=test
         env:
           PYTHON_VERSION: "3.8"
-  build-3.9:
+  build-39:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -31,7 +31,7 @@ jobs:
         run: docker build . --target=test
         env:
           PYTHON_VERSION: "3.9"
-  build-3.10:
+  build-310:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
