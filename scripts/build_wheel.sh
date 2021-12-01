@@ -1,5 +1,4 @@
 #!/bin/bash
-set -eou pipefail
 
 # Version of Import Tracker that we want to tag our wheel as
 release_version=${RELEASE_VERSION:-""}
@@ -11,7 +10,7 @@ NC='\033[0m'
 function show_help
 {
 cat <<- EOM
-Usage: scripts/build_wheels.sh -v [Import Tracker Version]
+Usage: scripts/build_wheels.sh -v [Import Tracker Version] -p [python versions]
 EOM
 }
 
@@ -20,6 +19,23 @@ while (($# > 0)); do
   -h | --h | --he | --hel | --help)
     show_help
     exit 2
+    ;;
+  -p | --python_versions)
+    shift
+    python_versions=""
+    while [ "$#" -gt "0" ]
+    do
+      if [ "$python_versions" != "" ]
+      then
+        python_versions="$python_versions "
+      fi
+      python_versions="$python_versions$1"
+      if [ "$#" -gt "1" ] && [[ "$2" == "-"* ]]
+      then
+        break
+      fi
+      shift
+    done
     ;;
   -v | --release_version)
     shift; release_version="$1";;
