@@ -1,0 +1,41 @@
+# This workflow runs the typescript implementation unit tests
+name: tests
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch: {}
+jobs:
+  build-3.7:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run unit tests
+        run: docker build . --target=test
+        env:
+          PYTHON_VERSION: "3.7"
+  build-3.8:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run unit tests
+        run: docker build . --target=test
+        env:
+          PYTHON_VERSION: "3.8"
+  build-3.9:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run unit tests
+        run: docker build . --target=test
+        env:
+          PYTHON_VERSION: "3.9"
+  build-3.10:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run unit tests
+        run: docker build . --target=test
+        env:
+          PYTHON_VERSION: "3.10"
