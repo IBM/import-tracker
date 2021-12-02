@@ -11,8 +11,12 @@ WORKDIR /src
 # Install build, test, andn publish dependencies
 COPY requirements_test.txt /src/
 RUN true && \
+    apt-get update -y && \
+    apt-get install make git -y && \
+    apt-get clean autoclean && \
+    apt-get autoremove --yes && \
     pip install pip --upgrade && \
-    pip install twine && \
+    pip install twine pre-commit && \
     pip install -r /src/requirements_test.txt && \
     true
 
@@ -26,6 +30,7 @@ RUN true && \
     ./scripts/run_tests.sh && \
     RELEASE_DRY_RUN=true RELEASE_VERSION=0.0.0 \
         ./scripts/publish.sh && \
+    ./scripts/fmt.sh && \
     true
 
 ## Release #####################################################################

@@ -18,3 +18,13 @@ fmt: ## Run code formatting
 .PHONY: wheel
 wheel: ## Build release wheels
 	./scripts/build_wheel.sh
+
+##@ Develop
+
+.PHONY: develop.build
+develop.build: ## Build the development environment container
+	docker build . --target=base -t import-tracker-develop
+
+.PHONY: develop
+develop:	develop.build ## Run the develop shell with the local codebase mounted
+	docker run --rm -it --entrypoint bash -w /src -v ${PWD}:/src import-tracker-develop
