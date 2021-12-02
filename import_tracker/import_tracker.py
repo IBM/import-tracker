@@ -215,7 +215,7 @@ def _track_deps(name: str, package: Optional[str] = None):
         stdout=subprocess.PIPE,
         env={
             MODE_ENV_VAR: LAZY,
-            "PYTHONPATH": os.environ.get("PYTHONPATH", ""),
+            "PYTHONPATH": ":".join(sys.path),
         },
     )
     assert res.returncode == 0, f"Failed to track {name}"
