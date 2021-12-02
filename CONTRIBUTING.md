@@ -97,8 +97,8 @@ Coding style is enforced by the CI tests, so if not installed locally, your PR w
 
 Unsure where to begin contributing? You can start by looking through these issues:
 
-- Issues with the [`good first issue` label](https://github.com/IBM/import-tracker/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22) - these should only require a few lines of code and are good targets if you're just starting contributing.
-- Issues with the [`help wanted` label](https://github.com/IBM/import-tracker/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+wanted%22) - these range from simple to more complex, but are generally things we want but can't get to in a short time frame.
+-   Issues with the [`good first issue` label](https://github.com/IBM/import-tracker/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22) - these should only require a few lines of code and are good targets if you're just starting contributing.
+-   Issues with the [`help wanted` label](https://github.com/IBM/import-tracker/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+wanted%22) - these range from simple to more complex, but are generally things we want but can't get to in a short time frame.
 
 ### How to contribute
 
@@ -112,10 +112,10 @@ Before sending pull requests, make sure your changes pass tests.
 
 Once you've [created a pull request](#how-to-contribute), maintainers will review your code and likely make suggestions to fix before merging. It will be easier for your pull request to receive reviews if you consider the criteria the reviewers follow while working. Remember to:
 
-- Run tests locally and ensure they pass
-- Follow the project coding conventions
-- Write detailed commit messages
-- Break large changes into a logical series of smaller patches, which are easy to understand individually and combine to solve a broader issue
+-   Run tests locally and ensure they pass
+-   Follow the project coding conventions
+-   Write detailed commit messages
+-   Break large changes into a logical series of smaller patches, which are easy to understand individually and combine to solve a broader issue
 
 ## Releasing (Maintainers only)
 
