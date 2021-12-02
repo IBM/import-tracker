@@ -1,43 +1,43 @@
 # This workflow runs the typescript implementation unit tests
 name: release
 on:
-  release:
-    types: [published]
-  workflow_dispatch: {}
+    release:
+        types: [published]
+    workflow_dispatch: {}
 jobs:
-  build-37:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Run release
-        env:
-          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
-          PYTHON_VERSION: "3.7"
-        run: REF="${{ github.ref }}" ./scripts/release.sh
-  build-38:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Run release
-        env:
-          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
-          PYTHON_VERSION: "3.8"
-        run: REF="${{ github.ref }}" ./scripts/release.sh
-  build-39:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Run release
-        env:
-          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
-          PYTHON_VERSION: "3.9"
-        run: REF="${{ github.ref }}" ./scripts/release.sh
-  build-310:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Run release
-        env:
-          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
-          PYTHON_VERSION: "3.10"
-        run: REF="${{ github.ref }}" ./scripts/release.sh
+    build-37:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v2
+            - name: Run release
+              env:
+                  PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+                  PYTHON_VERSION: "3.7"
+              run: REF="${{ github.ref }}" ./scripts/release.sh
+    build-38:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v2
+            - name: Run release
+              env:
+                  PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+                  PYTHON_VERSION: "3.8"
+              run: REF="${{ github.ref }}" ./scripts/release.sh
+    build-39:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v2
+            - name: Run release
+              env:
+                  PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+                  PYTHON_VERSION: "3.9"
+              run: REF="${{ github.ref }}" ./scripts/release.sh
+    build-310:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v2
+            - name: Run release
+              env:
+                  PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+                  PYTHON_VERSION: "3.10"
+              run: REF="${{ github.ref }}" ./scripts/release.sh
