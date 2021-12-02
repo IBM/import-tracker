@@ -23,26 +23,10 @@ Depending on your choice of value for `IMPORT_TRACKER_MODE`, you may want to sim
 
 `python3 -m import_tracker --help`
 
-Currently, the easiest way to run `Import Tracker` on a project is to add that project onto your `PYTHONPATH` and invoke the main entrypoint, as shown below.
+Currently, the easiest way to run `Import Tracker` on a project is to ensure that your project is on your `PYTHONPATH` and invoke the main entrypoint:
 
 ```bash
-PYTHONPATH=$PYTHONPATH:$PWD/src:$PWD/test/sample_libs \
-IMPORT_TRACKER_MODE=LAZY \
 python3 -m import_tracker -n sample_lib
 ```
 
 <a name="footnote">†</a>: Currently, `BEST_EFFORT` is the default behavior if `IMPORT_TRACKER_MODE` is unset.
-
-## How to Run Tests
-
-In order to run the tests, you'll need to first install the test dependencies as shown below.
-
-```
-pip3 install -r requirements_test.txt
-```
-
-Then, you can run the unit tests as shown below.
-
-```python3
-./scripts/run_tests.sh
-```
