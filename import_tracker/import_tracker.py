@@ -121,7 +121,7 @@ def get_required_imports(name: str) -> List[str]:
     the module is not known, ImportError is raised
     """
     if name not in _module_dep_mapping:
-        raise ImportError(f"Cannot get required imports for untracked module [{name}]")
+        raise ValueError(f"Cannot get required imports for untracked module [{name}]")
     return _module_dep_mapping[name]
 
 
@@ -307,7 +307,7 @@ def _get_calling_package() -> ModuleType:
         mod_pkg = mod.__name__.split(".")[0]
         if mod_pkg != this_pkg:
             return sys.modules[mod_pkg]
-    assert False, "Degenerate stack with no parent module"
+    assert False, "Degenerate stack with no parent module" # pragma: no cover
 
 
 def _load_static_tracker():
