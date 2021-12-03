@@ -4,8 +4,11 @@ Tests for the import_tracker module's public API
 
 # Standard
 from types import ModuleType
+import json
 import os
 import sys
+import tempfile
+import warnings
 
 # Third Party
 import pytest
@@ -16,6 +19,7 @@ from test.helpers import (
     LAZY_MODE,
     PROACTIVE_MODE,
     TRACKING_MODE,
+    reset_static_trackers,
     reset_sys_modules,
 )
 import import_tracker
@@ -105,6 +109,14 @@ def test_get_required_imports_static_tracker(mode):
         }
 
 
+def test_get_required_imports_untracked():
+    """Test that an appropriate ValueError is raised if an untracked module is
+    requested
+    """
+    with pytest.raises(ValueError):
+        import_tracker.get_required_imports("alog")
+
+
 ## get_required_packages #######################################################
 
 
@@ -133,6 +145,25 @@ def test_get_required_packages_static_tracker(mode):
             "alchemy-logging",
             "PyYAML",
         }
+
+
+def test_get_required_packages_untracked():
+    """Test that an appropriate ValueError is raised if an untracked module is
+    requested
+    """
+    with pytest.raises(ValueError):
+        import_tracker.get_required_packages("alog")
+
+
+def test_get_required_packages_no_package_lookup():
+    """Test that an appropriate warning is issued if one of the imports does not
+    have a known package name
+    """
+    with warnings.catch_warnings(record=True) as warns:
+        warnings.simplefilter("always")
+        submod1 = import_tracker.import_module("sample_lib.submod1")
+        import_tracker.get_required_packages("sample_lib.submod1")
+    assert len(warns) == 1
 
 
 ## import_module ###############################################################
@@ -223,6 +254,19 @@ def test_import_module_lazy_re_import(LAZY_MODE):
     assert alog2 is sys.modules["alog"]
 
 
+def test_import_module_lazy_missing_static_tracker(LAZY_MODE):
+    """Test that if lazy mode is invoked and the static tracker has not been set
+    up, an appropriate warning is raised
+    """
+    with tempfile.TemporaryDirectory() as workdir:
+        static_tracker = os.path.join(workdir, "static_tracker.json")
+        import_tracker.set_static_tracker(static_tracker)
+        with warnings.catch_warnings(record=True) as warns:
+            warnings.simplefilter("always")
+            submod1 = import_tracker.import_module("alog")
+        assert len(warns) == 1
+
+
 ###############
 ## PROACTIVE ##
 ###############
@@ -248,3 +292,39 @@ def test_import_module_proactive_downstream_use(PROACTIVE_MODE):
 ##############
 ## TRACKING ##
 ##############
+
+
+def test_import_module_tracking_direct(TRACKING_MODE):
+    """Test that running an import with tracking mode enabled correctly computes
+    the dependencies for a module
+    """
+    submod1 = import_tracker.import_module("sample_lib.submod1")
+    submod2 = import_tracker.import_module("sample_lib.submod2")
+    assert import_tracker.get_required_imports("sample_lib.submod1") == [
+        "conditional_deps"
+    ]
+    assert import_tracker.get_required_imports("sample_lib.submod2") == ["alog"]
+
+
+def test_import_module_tracking_update_static(TRACKING_MODE):
+    """Test that when enabled, the static tracking file is updated correctly"""
+    with tempfile.TemporaryDirectory() as workdir:
+        static_tracker = os.path.join(workdir, "static_tracker.json")
+        import_tracker.set_static_tracker(static_tracker)
+        assert not os.path.exists(static_tracker)
+        submod1 = import_tracker.import_module("sample_lib.submod1")
+        assert os.path.exists(static_tracker)
+        with open(static_tracker, "r") as handle:
+            content = json.load(handle)
+            assert list(content.keys()) == ["sample_lib.submod1"]
+        submod2 = import_tracker.import_module("sample_lib.submod2")
+        with open(static_tracker, "r") as handle:
+            content = json.load(handle)
+            assert set(content.keys()) == {"sample_lib.submod1", "sample_lib.submod2"}
+
+
+def test_import_module_tracking_with_package(TRACKING_MODE):
+    """Test that performing tracking when the submodule has a package works as
+    expected (this is mostly for coverage)
+    """
+    import_tracker.import_module(".submod1", "sample_lib")

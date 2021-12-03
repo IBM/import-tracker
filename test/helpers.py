@@ -31,6 +31,16 @@ def reset_sys_modules():
         del mod
 
 
+@pytest.fixture(autouse=True)
+def reset_static_trackers():
+    """This fixture clears out the global static tracker map"""
+    before_static_trackers = list(import_tracker.import_tracker._static_trackers.keys())
+    yield
+    for key in list(import_tracker.import_tracker._static_trackers.keys()):
+        if key not in before_static_trackers:
+            del import_tracker.import_tracker._static_trackers[key]
+
+
 @pytest.fixture
 def BEST_EFFORT_MODE():
     """Fixture that uses the default_import_mode context manager to ensure that
