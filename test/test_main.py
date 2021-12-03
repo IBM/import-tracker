@@ -11,7 +11,7 @@ import sys
 import pytest
 
 # Local
-from .helpers import LAZY_MODE
+from .helpers import LAZY_MODE, reset_sys_modules
 from import_tracker.__main__ import main
 import import_tracker
 
@@ -27,6 +27,11 @@ def cli_args(*args):
     yield
     sys.argv = prev_argv
 
+
+# We keep track of the base system modules names so that they can be removed
+# from the results in the tests
+BASE_SYS_MODULES = set(sys.modules.keys())
+
 ## Tests #######################################################################
 
 def test_without_package(capsys, LAZY_MODE):
@@ -37,10 +42,10 @@ def test_without_package(capsys, LAZY_MODE):
     assert not captured.err
     assert captured.out
     parsed_out = json.loads(captured.out)
-
-    # Just check the keys. The values are funky because of this being run from
-    # within a test
     assert list(parsed_out.keys()) == ["sample_lib.submod1"]
+    assert (
+        set(parsed_out["sample_lib.submod1"]) - BASE_SYS_MODULES
+    ) == {"conditional_deps"}
 
 
 def test_with_package(capsys, LAZY_MODE):
@@ -51,10 +56,10 @@ def test_with_package(capsys, LAZY_MODE):
     assert not captured.err
     assert captured.out
     parsed_out = json.loads(captured.out)
-
-    # Just check the keys. The values are funky because of this being run from
-    # within a test
     assert list(parsed_out.keys()) == ["sample_lib.submod1"]
+    assert (
+        set(parsed_out["sample_lib.submod1"]) - BASE_SYS_MODULES
+    ) == {"conditional_deps"}
 
 
 def test_file_without_parent_path(capsys):
