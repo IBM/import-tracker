@@ -307,7 +307,7 @@ def _get_calling_package() -> ModuleType:
         mod_pkg = mod.__name__.split(".")[0]
         if mod_pkg != this_pkg:
             return sys.modules[mod_pkg]
-    assert False, "Degenerate stack with no parent module" # pragma: no cover
+    assert False, "Degenerate stack with no parent module"  # pragma: no cover
 
 
 def _load_static_tracker():

@@ -15,7 +15,6 @@ from .helpers import LAZY_MODE, reset_sys_modules
 from import_tracker.__main__ import main
 import import_tracker
 
-
 ## Helpers #####################################################################
 
 
@@ -34,6 +33,7 @@ BASE_SYS_MODULES = set(sys.modules.keys())
 
 ## Tests #######################################################################
 
+
 def test_without_package(capsys, LAZY_MODE):
     """Run the main function against the sample lib and check the output"""
     with cli_args("--name", "sample_lib.submod1"):
@@ -43,9 +43,9 @@ def test_without_package(capsys, LAZY_MODE):
     assert captured.out
     parsed_out = json.loads(captured.out)
     assert list(parsed_out.keys()) == ["sample_lib.submod1"]
-    assert (
-        set(parsed_out["sample_lib.submod1"]) - BASE_SYS_MODULES
-    ) == {"conditional_deps"}
+    assert (set(parsed_out["sample_lib.submod1"]) - BASE_SYS_MODULES) == {
+        "conditional_deps"
+    }
 
 
 def test_with_package(capsys, LAZY_MODE):
@@ -57,9 +57,9 @@ def test_with_package(capsys, LAZY_MODE):
     assert captured.out
     parsed_out = json.loads(captured.out)
     assert list(parsed_out.keys()) == ["sample_lib.submod1"]
-    assert (
-        set(parsed_out["sample_lib.submod1"]) - BASE_SYS_MODULES
-    ) == {"conditional_deps"}
+    assert (set(parsed_out["sample_lib.submod1"]) - BASE_SYS_MODULES) == {
+        "conditional_deps"
+    }
 
 
 def test_file_without_parent_path(capsys):
