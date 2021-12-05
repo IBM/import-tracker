@@ -4,7 +4,7 @@ set -e
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$BASE_DIR"
 
-FAIL_THRESH=40.0
+FAIL_THRESH=100.0
 python3 -m pytest \
     --cov-config=.coveragerc \
     --cov=import_tracker \

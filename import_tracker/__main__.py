@@ -30,6 +30,7 @@ def _get_import_parent_path(mod) -> str:
     # Some standard libs have no __file__ attribute
     if not hasattr(mod, "__file__"):
         return _std_lib_dir
+
     # In some cases, we might have __file__ set, but it may be some other value; for the case
     # of namespace packages, this might be set to None, which is the default value.
     # ref: https://docs.python.org/3/library/importlib.html#importlib.machinery.ModuleSpec.origin
@@ -97,5 +98,5 @@ def main():
     )
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()
