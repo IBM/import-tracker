@@ -167,6 +167,35 @@ def test_get_required_packages_no_package_lookup():
     assert len(warns) == 1
 
 
+## get_tracked_modules #########################################################
+
+
+def test_get_tracked_modules_prefix(BEST_EFFORT_MODE):
+    """Test that get_tracked_modules returns all tracked modules for the given
+    prefix
+    """
+    # Local
+    import sample_lib
+
+    assert import_tracker.get_tracked_modules("sample_lib.nested") == [
+        "sample_lib.nested.submod3"
+    ]
+
+
+def test_get_tracked_modules_no_prefix(BEST_EFFORT_MODE):
+    """Test that get_tracked_modules returns all tracked modules when no prefix
+    is given
+    """
+    # Local
+    import sample_lib
+
+    assert import_tracker.get_tracked_modules() == [
+        "sample_lib.nested.submod3",
+        "sample_lib.submod1",
+        "sample_lib.submod2",
+    ]
+
+
 ## import_module ###############################################################
 
 #################

@@ -13,6 +13,7 @@ from .import_tracker import (
     default_import_mode,
     get_required_imports,
     get_required_packages,
+    get_tracked_modules,
     import_module,
     set_static_tracker,
 )

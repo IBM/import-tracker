@@ -146,6 +146,14 @@ def get_required_packages(name: str) -> List[str]:
     return sorted(list(required_pkgs))
 
 
+def get_tracked_modules(prefix: str = "") -> List[str]:
+    """Get all tracked modules whose name starts with the given prefix.
+    Libraries which implement static tracking can use this to determine the full
+    set of tracked modules in a central location.
+    """
+    return [name for name in _module_dep_mapping if name.startswith(prefix)]
+
+
 @contextmanager
 def default_import_mode(import_mode: str):
     """This contextmanager will set the default import mode and then reset it on
