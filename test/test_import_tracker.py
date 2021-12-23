@@ -301,12 +301,12 @@ def test_import_module_tracking_direct(TRACKING_MODE):
     """
     submod1 = import_tracker.import_module("sample_lib.submod1")
     submod2 = import_tracker.import_module("sample_lib.submod2")
-    assert remove_test_deps(import_tracker.get_required_imports("sample_lib.submod1")) == [
-        "conditional_deps"
-    ]
-    assert remove_test_deps(import_tracker.get_required_imports("sample_lib.submod2")) == [
-        "alog"
-    ]
+    assert remove_test_deps(
+        import_tracker.get_required_imports("sample_lib.submod1")
+    ) == ["conditional_deps"]
+    assert remove_test_deps(
+        import_tracker.get_required_imports("sample_lib.submod2")
+    ) == ["alog"]
 
 
 def test_import_module_tracking_update_static(TRACKING_MODE):
