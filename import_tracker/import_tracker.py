@@ -232,7 +232,7 @@ def _track_deps(name: str, package: Optional[str] = None):
                 static_content = json.load(handle)
         static_content.update(deps)
         with open(static_tracker, "w") as handle:
-            handle.write(json.dumps(static_content, indent=2))
+            handle.write("{}\n".format(json.dumps(static_content, indent=2)))
 
 
 def _map_modules_to_package_names():
