@@ -331,3 +331,11 @@ def test_import_module_tracking_with_package(TRACKING_MODE):
     expected (this is mostly for coverage)
     """
     import_tracker.import_module(".submod1", "sample_lib")
+
+
+def test_import_module_tracking_env_passthrough(TRACKING_MODE):
+    """Test that performing tracking when the submodule has a package works as
+    expected (this is mostly for coverage)
+    """
+    os.environ["SAMPLE_ENV_VAR"] = "something"
+    import_tracker.import_module("env_import")
