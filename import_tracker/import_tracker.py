@@ -7,6 +7,7 @@ through import statements
 from contextlib import contextmanager
 from types import ModuleType
 from typing import Dict, List, Optional
+import copy
 import importlib
 import inspect
 import json
@@ -210,14 +211,10 @@ def _track_deps(name: str, package: Optional[str] = None):
     )
     if package is not None:
         cmd += f" --package {package}"
-    res = subprocess.run(
-        shlex.split(cmd),
-        stdout=subprocess.PIPE,
-        env={
-            MODE_ENV_VAR: LAZY,
-            "PYTHONPATH": ":".join(sys.path),
-        },
-    )
+    env = dict(copy.deepcopy(os.environ))
+    env[MODE_ENV_VAR] = LAZY
+    env["PYTHONPATH"] = ":".join(sys.path)
+    res = subprocess.run(shlex.split(cmd), stdout=subprocess.PIPE, env=env)
     assert res.returncode == 0, f"Failed to track {name}"
     deps = json.loads(res.stdout)
 

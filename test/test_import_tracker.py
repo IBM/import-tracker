@@ -19,6 +19,7 @@ from test.helpers import (
     LAZY_MODE,
     PROACTIVE_MODE,
     TRACKING_MODE,
+    remove_test_deps,
     reset_static_trackers,
     reset_sys_modules,
 )
@@ -300,10 +301,12 @@ def test_import_module_tracking_direct(TRACKING_MODE):
     """
     submod1 = import_tracker.import_module("sample_lib.submod1")
     submod2 = import_tracker.import_module("sample_lib.submod2")
-    assert import_tracker.get_required_imports("sample_lib.submod1") == [
-        "conditional_deps"
-    ]
-    assert import_tracker.get_required_imports("sample_lib.submod2") == ["alog"]
+    assert remove_test_deps(
+        import_tracker.get_required_imports("sample_lib.submod1")
+    ) == ["conditional_deps"]
+    assert remove_test_deps(
+        import_tracker.get_required_imports("sample_lib.submod2")
+    ) == ["alog"]
 
 
 def test_import_module_tracking_update_static(TRACKING_MODE):
@@ -328,3 +331,11 @@ def test_import_module_tracking_with_package(TRACKING_MODE):
     expected (this is mostly for coverage)
     """
     import_tracker.import_module(".submod1", "sample_lib")
+
+
+def test_import_module_tracking_env_passthrough(TRACKING_MODE):
+    """Test that performing tracking when the submodule has a package works as
+    expected (this is mostly for coverage)
+    """
+    os.environ["SAMPLE_ENV_VAR"] = "something"
+    import_tracker.import_module("env_import")
