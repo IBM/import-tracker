@@ -139,10 +139,14 @@ def get_required_packages(name: str) -> List[str]:
     # Merge the required packages for each
     required_pkgs = set()
     for mod in required_modules:
+        # If there is a known mapping, use it
         if mod in _module_to_pkg:
             required_pkgs.update(_module_to_pkg[mod])
+
+        # Otherwise, assume that the name of the module is itself the name of
+        # the package
         else:
-            warnings.warn(f"Could not find any required packages for {mod}")
+            required_pkgs.add(mod)
     return sorted(list(required_pkgs))
 
 
