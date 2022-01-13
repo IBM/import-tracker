@@ -157,14 +157,11 @@ def test_get_required_packages_untracked():
 
 
 def test_get_required_packages_no_package_lookup():
-    """Test that an appropriate warning is issued if one of the imports does not
-    have a known package name
-    """
-    with warnings.catch_warnings(record=True) as warns:
-        warnings.simplefilter("always")
-        submod1 = import_tracker.import_module("sample_lib.submod1")
-        import_tracker.get_required_packages("sample_lib.submod1")
-    assert len(warns) == 1
+    """Test that an import without a known package is passed through"""
+    submod1 = import_tracker.import_module("sample_lib.submod1")
+    assert "conditional_deps" in import_tracker.get_required_packages(
+        "sample_lib.submod1"
+    )
 
 
 ## get_tracked_modules #########################################################
