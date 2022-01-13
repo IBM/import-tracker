@@ -10,6 +10,7 @@ from .import_tracker import (
     MODE_ENV_VAR,
     PROACTIVE,
     TRACKING,
+    LazyModule,
     default_import_mode,
     get_required_imports,
     get_required_packages,
