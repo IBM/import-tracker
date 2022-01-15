@@ -5,6 +5,10 @@ Tests for the lazy_import_errors functionality
 # Standard
 import os
 import pickle
+import shlex
+import subprocess
+import sys
+import tempfile
 
 # Third Party
 import pytest
@@ -209,6 +213,8 @@ async def test_lazy_import_error_with_from_async():
     # Make sure that doing _anything_ with Baz does trigger the error
     for fn in [
         lambda: Baz,
+        # These two are really hard to exercise, so we'll just test them
+        # directly
         lambda: Baz.__aiter__(),
         lambda: Baz.__anext__(),
     ]:
@@ -220,8 +226,67 @@ def test_lazy_import_error_attr_pickle():
     """Test that when deserializing a pickled object created using a class that
     is not available at unpickling time due to a missing module, an appropriate
     ModuleNotFoundError is raised from the _LazyErrorAttr class that fills in
-    for the missing type.
+    for the missing type. This one is pretty niche since pickling will actually
+    pickle the contents of the class itself. The error only occurs if the class
+    relies on _another_ module that is not available at unpickling time.
     """
+    with tempfile.TemporaryDirectory() as workdir:
+        mod1 = os.path.join(workdir, "some_module.py")
+        with open(mod1, "w") as handle:
+            handle.write(
+                """
+import pickle
+from other_module import Bar
+
+class Foo:
+    def __init__(self):
+        self.val = Bar(1)
+"""
+            )
+        mod2 = os.path.join(workdir, "other_module.py")
+        with open(mod2, "w") as handle:
+            handle.write(
+                """
+class Bar:
+    def __init__(self, val):
+        self.val = val + 1
+"""
+            )
+        out, _ = subprocess.Popen(
+            shlex.split(
+                f"{sys.executable} -c 'from some_module import Foo; import pickle; print(pickle.dumps(Foo()).hex())'"
+            ),
+            stdout=subprocess.PIPE,
+            env={"PYTHONPATH": workdir},
+        ).communicate()
+
+    # Import the missing module
+    with import_tracker.lazy_import_errors():
+        # Third Party
+        from some_module import Foo
+
+    # Grab the pickled output
+    pickled = bytes.fromhex(out.strip().decode("utf-8"))
+
+    # Try to unpickle it
+    with pytest.raises(ModuleNotFoundError):
+        pickle.loads(pickled)
+
+
+def test_lazy_import_error_attr_class_inheritance():
+    """Test that when a lazily imported error attribute is used as a base class,
+    the import error occurs when the derived class is instantiated.
+    """
+    with import_tracker.lazy_import_errors():
+        # Third Party
+        from foo.bar import Baz
+
+    class Bat(Baz):
+        def __init__(self, val):
+            super().__init__(val)
+
+    with pytest.raises(ModuleNotFoundError):
+        Bat(1)
 
 
 def test_lazy_import_error_infinite_attrs():

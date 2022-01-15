@@ -43,10 +43,17 @@ class _LazyErrorAttr(type):
         is raised rather than an opaque error about NEWOBJ not being a type.
     """
 
-    def __new__(cls, missing_module_name: str):
-        return super().__new__(cls, f"_LazyErrorAttr[{missing_module_name}]", (), {})
+    def __new__(cls, missing_module_name: str, bases=None, namespace=None):
+        # When this is used as a base class, we need to pass __classcell__
+        # through to type.__new__ to avoid a runtime warning.
+        new_namespace = {}
+        if isinstance(namespace, dict):
+            new_namespace["__classcell__"] = namespace.get("__classcell__")
+        return super().__new__(
+            cls, f"_LazyErrorAttr[{missing_module_name}]", (), new_namespace
+        )
 
-    def __init__(self, missing_module_name: str):
+    def __init__(self, missing_module_name: str, *_, **__):
         """Store the name of the attribute being accessed and the missing module"""
 
         def _raise(*_, **__):
@@ -72,6 +79,7 @@ class _LazyErrorAttr(type):
     #   __init__
     #   __len__
     #   __new__
+    #   __repr__
     #   __setattr__
     ##
     def __abs__(self, *_, **__):
@@ -222,9 +230,6 @@ class _LazyErrorAttr(type):
         self._raise()
 
     def __rand__(self, *_, **__):
-        self._raise()
-
-    def __repr__(self, *_, **__):
         self._raise()
 
     def __rfloordiv__(self, *_, **__):
