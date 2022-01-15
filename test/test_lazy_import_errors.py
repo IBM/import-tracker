@@ -4,6 +4,7 @@ Tests for the lazy_import_errors functionality
 
 # Standard
 import os
+import pickle
 
 # Third Party
 import pytest
@@ -42,3 +43,193 @@ def test_lazy_import_happy_package_with_sad_optionals():
         # Local
         import conditional_deps
     assert not conditional_deps.mod.HAS_FB
+
+
+def test_lazy_import_error_with_from():
+    """Test that the syntax 'from foo.bar import Baz' does raise lazily"""
+    with import_tracker.lazy_import_errors():
+        # Third Party
+        from foo.bar import Baz
+
+    # Define a class that has no operators so that the __r*__ operators can be
+    # exercised
+    class RTestStub:
+        pass
+
+    # Define some test cases that can't be formulated as lambdas
+    def test_delete():
+        class Foo:
+            foo = Baz
+
+        f = Foo()
+        del f.foo
+
+    def test_delitem():
+        del Baz["asdf"]
+
+    def test_get():
+        class Foo:
+            foo = Baz
+
+        f = Foo()
+        f.foo
+
+    def test_set():
+        class Foo:
+            foo = Baz
+
+        f = Foo()
+        f.foo = 1
+
+    def test_iadd():
+        Baz.buz += 1
+
+    def test_iand():
+        Baz.buz &= 1
+
+    def test_ifloordiv():
+        Baz.buz //= 1
+
+    def test_ilshift():
+        Baz.buz <<= 1
+
+    def test_ishift():
+        Baz.buz >>= 1
+
+    def test_imod():
+        Baz.buz %= 1
+
+    def test_imatmul():
+        Baz.buz @= 1
+
+    def test_imul():
+        Baz.buz *= 1
+
+    def test_ior():
+        Baz.buz |= 1
+
+    def test_ipow():
+        Baz.buz **= 2
+
+    def test_isub():
+        Baz.buz -= 1
+
+    def test_itruediv():
+        Baz.buz /= 1
+
+    def test_ixor():
+        Baz.buz ^= 1
+
+    def test_setitem():
+        Baz.buz[1] = 1
+
+    # Make sure that doing _anything_ with Baz does trigger the error
+    for fn in [
+        lambda: Baz(),
+        lambda: Baz + 1,
+        lambda: Baz * 2,
+        lambda: Baz ** 2,
+        lambda: Baz @ 2,
+        lambda: Baz - 1,
+        lambda: 1 - Baz,
+        lambda: -Baz,
+        lambda: +Baz,
+        lambda: abs(Baz),
+        lambda: Baz & True,
+        lambda: Baz | True,
+        lambda: 1 in Baz,
+        lambda: delattr(Baz, "foo"),
+        lambda: [x for x in Baz],
+        lambda: Baz == Baz,
+        lambda: Baz != Baz,
+        lambda: int(Baz),
+        lambda: float(Baz),
+        lambda: str(Baz),
+        lambda: Baz > 1,
+        lambda: Baz >= 1,
+        lambda: Baz < 1,
+        lambda: Baz <= 1,
+        lambda: hash(Baz),
+        lambda: Baz[0],
+        lambda: Baz / 2,
+        lambda: Baz // 1,
+        lambda: Baz << 1,
+        lambda: Baz >> 1,
+        lambda: Baz % 1,
+        lambda: Baz ^ 1,
+        lambda: ~Baz,
+        lambda: [1, 2, 3][Baz],
+        lambda: next(Baz),
+        lambda: RTestStub() + Baz,
+        lambda: RTestStub() & Baz,
+        lambda: RTestStub() * Baz,
+        lambda: RTestStub() / Baz,
+        lambda: RTestStub() // Baz,
+        lambda: RTestStub() % Baz,
+        lambda: RTestStub() ^ Baz,
+        lambda: RTestStub() @ Baz,
+        lambda: RTestStub() << Baz,
+        lambda: RTestStub() >> Baz,
+        lambda: RTestStub() | Baz,
+        lambda: RTestStub() ** Baz,
+        test_delete,
+        test_delitem,
+        test_get,
+        test_set,
+        test_iadd,
+        test_iand,
+        test_ifloordiv,
+        test_ilshift,
+        test_ishift,
+        test_imod,
+        test_imatmul,
+        test_imul,
+        test_ior,
+        test_ipow,
+        test_isub,
+        test_itruediv,
+        test_ixor,
+        test_setitem,
+    ]:
+        with pytest.raises(ModuleNotFoundError):
+            fn()
+
+    # Make sure it cannot be pickled
+    with pytest.raises(pickle.PicklingError):
+        pickle.dumps(Baz)
+
+
+@pytest.mark.asyncio
+async def test_lazy_import_error_with_from_async():
+    """Test that the async operators also raise"""
+    with import_tracker.lazy_import_errors():
+        # Third Party
+        from foo.bar import Baz
+
+    # Make sure that doing _anything_ with Baz does trigger the error
+    for fn in [
+        lambda: Baz,
+        lambda: Baz.__aiter__(),
+        lambda: Baz.__anext__(),
+    ]:
+        with pytest.raises(ModuleNotFoundError):
+            await fn()
+
+
+def test_lazy_import_error_attr_pickle():
+    """Test that when deserializing a pickled object created using a class that
+    is not available at unpickling time due to a missing module, an appropriate
+    ModuleNotFoundError is raised from the _LazyErrorAttr class that fills in
+    for the missing type.
+    """
+
+
+def test_lazy_import_error_infinite_attrs():
+    """Make sure that a _LazyErrorAttr can recursively deliver infinite
+    attributes to fill in arbitrary attrs on the parent module
+    """
+    with import_tracker.lazy_import_errors():
+        # Third Party
+        from foo.bar import Baz
+
+        assert Baz.bat is Baz
