@@ -11,4 +11,5 @@ python3 -m pytest \
     --cov-report=term \
     --cov-report=html \
     --cov-fail-under=$FAIL_THRESH \
+    --asyncio-mode=strict \
     -W error "$@"
