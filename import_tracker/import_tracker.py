@@ -6,7 +6,7 @@ through import statements
 # Standard
 from contextlib import contextmanager
 from types import ModuleType
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
 import copy
 import importlib
 import inspect
@@ -128,26 +128,7 @@ def get_required_imports(name: str) -> List[str]:
 
 def get_required_packages(name: str) -> List[str]:
     """Get the set of installable packages required by this names module"""
-    # Lazily create the global mapping
-    global _module_to_pkg
-    if _module_to_pkg is None:
-        _module_to_pkg = _map_modules_to_package_names()
-
-    # Get all required imports
-    required_modules = get_required_imports(name)
-
-    # Merge the required packages for each
-    required_pkgs = set()
-    for mod in required_modules:
-        # If there is a known mapping, use it
-        if mod in _module_to_pkg:
-            required_pkgs.update(_module_to_pkg[mod])
-
-        # Otherwise, assume that the name of the module is itself the name of
-        # the package
-        else:
-            required_pkgs.add(mod)
-    return sorted(list(required_pkgs))
+    return _get_required_packages_for_imports(get_required_imports(name))
 
 
 def get_tracked_modules(prefix: str = "") -> List[str]:
@@ -299,7 +280,7 @@ def _map_modules_to_package_names():
                         ),
                     ):
                         modules_to_package_names.setdefault(modname, set()).add(
-                            package_name
+                            _standardize_package_name(package_name)
                         )
 
     return modules_to_package_names
@@ -335,3 +316,31 @@ def _load_static_tracker():
         with open(static_tracker, "r") as handle:
             global _module_dep_mapping
             _module_dep_mapping.update(json.load(handle))
+
+
+def _standardize_package_name(raw_package_name):
+    """Helper to convert the arbitrary ways packages can be represented to a
+    common (matchable) representation
+    """
+    return raw_package_name.strip().lower().replace("-", "_")
+
+
+def _get_required_packages_for_imports(imports: Iterable[str]) -> List[str]:
+    """Get the set of installable packages required by this list of imports"""
+    # Lazily create the global mapping
+    global _module_to_pkg
+    if _module_to_pkg is None:
+        _module_to_pkg = _map_modules_to_package_names()
+
+    # Merge the required packages for each
+    required_pkgs = set()
+    for mod in imports:
+        # If there is a known mapping, use it
+        if mod in _module_to_pkg:
+            required_pkgs.update(_module_to_pkg[mod])
+
+        # Otherwise, assume that the name of the module is itself the name of
+        # the package
+        else:
+            required_pkgs.add(mod)
+    return sorted(list(required_pkgs))

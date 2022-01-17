@@ -138,13 +138,13 @@ def test_get_required_packages_static_tracker(mode):
         import sample_lib
 
         assert set(import_tracker.get_required_packages("sample_lib.submod2")) == {
-            "alchemy-logging",
+            "alchemy_logging",
         }
         assert set(
             import_tracker.get_required_packages("sample_lib.nested.submod3")
         ) == {
-            "alchemy-logging",
-            "PyYAML",
+            "alchemy_logging",
+            "pyyaml",
         }
 
 
