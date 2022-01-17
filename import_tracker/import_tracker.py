@@ -280,7 +280,7 @@ def _map_modules_to_package_names():
                         ),
                     ):
                         modules_to_package_names.setdefault(modname, set()).add(
-                            package_name
+                            _standardize_package_name(package_name)
                         )
 
     return modules_to_package_names
@@ -316,6 +316,13 @@ def _load_static_tracker():
         with open(static_tracker, "r") as handle:
             global _module_dep_mapping
             _module_dep_mapping.update(json.load(handle))
+
+
+def _standardize_package_name(raw_package_name):
+    """Helper to convert the arbitrary ways packages can be represented to a
+    common (matchable) representation
+    """
+    return raw_package_name.strip().lower().replace("-", "_")
 
 
 def _get_required_packages_for_imports(imports: Iterable[str]) -> List[str]:
