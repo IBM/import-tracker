@@ -4,6 +4,7 @@ tracks their third party deps
 """
 
 # Local
+from . import setup_tools
 from .import_tracker import (
     BEST_EFFORT,
     LAZY,
