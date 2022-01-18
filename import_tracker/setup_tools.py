@@ -19,11 +19,13 @@ from .import_tracker import (
     get_tracked_modules,
 )
 
-# Regex for parsing requirements
-req_split_expr = re.compile(r"[=><!~\[]")
-
 # Shared logger
 log = logging.getLogger("SETUP")
+
+# Regex for parsing requirements
+_REQ_SPLIT_EXPR = re.compile(r"[=><!~\[]")
+
+_ALL_GROUP = "all"
 
 
 def _map_requirements(declared_dependencies, dependency_set):
@@ -66,7 +68,7 @@ def parse_requirements(
     # Load all requirements from the requirements file
     with open(requirements_file, "r") as handle:
         requirements = {
-            _standardize_package_name(req_split_expr.split(line, 1)[0]): line.strip()
+            _standardize_package_name(_REQ_SPLIT_EXPR.split(line, 1)[0]): line.strip()
             for line in handle.readlines()
             if line.strip() and not line.startswith("#")
         }
@@ -117,6 +119,13 @@ def parse_requirements(
         sorted(list(missing_reqs)),
     )
     common_imports = common_imports.union(missing_reqs)
+
+    # Add a special "all" group to the extras_require that will install all deps
+    # needed for all extras
+    if _ALL_GROUP not in extras_require_sets:
+        all_reqs = all_tracked_requirements.union(missing_reqs)
+        log.debug("Adding [%s] requirement group: %s", _ALL_GROUP, all_reqs)
+        extras_require_sets[_ALL_GROUP] = all_reqs
 
     # Map all dependencies through those listed in requirements.txt
     standardized_requirements = {
