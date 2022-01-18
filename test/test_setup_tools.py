@@ -42,6 +42,7 @@ def test_parse_requirements_happy():
             "submod3": sorted(["PyYaml >= 6.0", "alchemy-logging>=1.0.3"]),
             "submod1": sorted(["conditional_deps"]),
             "submod2": sorted(["alchemy-logging>=1.0.3"]),
+            "all": sorted(sample_lib_requirements),
         }
 
 
@@ -52,17 +53,19 @@ def test_parse_requirements_add_untracked_reqs():
     with tempfile.NamedTemporaryFile("w") as requirements_file:
         # Make a requirements file with an extra entry
         extra_req = "something-ElSe[extras]~=1.2.3"
-        requirements_file.write("\n".join(sample_lib_requirements + [extra_req]))
+        reqs = sample_lib_requirements + [extra_req]
+        requirements_file.write("\n".join(reqs))
         requirements_file.flush()
 
         # Parse the reqs for "sample_lib"
-        requirements, _ = parse_requirements(
+        requirements, extras_require = parse_requirements(
             requirements_file.name,
             "sample_lib",
         )
 
         # Make sure the extra requirement was added
-        extra_req in requirements
+        assert extra_req in requirements
+        assert extras_require["all"] == sorted(reqs)
 
 
 def test_parse_requirements_missing_import_tracker():
