@@ -20,6 +20,7 @@ import warnings
 
 # Local
 from .lazy_import_errors import lazy_import_errors
+from .log import log
 
 ## Public Globals ##############################################################
 
@@ -78,6 +79,9 @@ def set_static_tracker(fname: Optional[str] = None):
         )
 
     # Map the calling package name to the final file name in the global mapping of tracked modules
+    log.debug(
+        "Enabling static tracking for %s in file %s", calling_package.__name__, fname
+    )
     global _static_trackers
     _static_trackers[calling_package.__name__] = fname
 
@@ -93,6 +97,7 @@ def import_module(name: str, package: Optional[str] = None) -> ModuleType:
 
     # Get the current import mode
     import_mode = _get_import_mode()
+    log.debug2("Importing with mode %s", import_mode)
 
     # If not running in TRACKING mode, load the static tracker if available
     if import_mode in [PROACTIVE, LAZY, BEST_EFFORT]:
