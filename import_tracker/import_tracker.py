@@ -202,10 +202,11 @@ def _track_deps(name: str, package: Optional[str] = None):
     """
 
     # Run this package as a subprocess and collect the results
-    cmd = "{} -W ignore -m {} --name {}".format(
+    cmd = "{} -W ignore -m {} --name {} --log_level {}".format(
         sys.executable,
         sys.modules[__name__].__package__,
         name,
+        log.root.level,
     )
     if package is not None:
         cmd += f" --package {package}"
