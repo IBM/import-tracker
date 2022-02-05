@@ -188,6 +188,7 @@ class LazyModule(ModuleType):
         and then delegate
         """
         if self.__wrapped_module is None:
+            log.debug1("Triggering lazy import for %s.%s", self.__package, self.__name)
             self.__wrapped_module = importlib.import_module(
                 self.__name,
                 self.__package,
@@ -210,6 +211,7 @@ def _track_deps(name: str, package: Optional[str] = None):
     )
     if package is not None:
         cmd += f" --package {package}"
+    log.debug2("Spawning subprocess with command: %s", cmd)
     env = dict(copy.deepcopy(os.environ))
     env[MODE_ENV_VAR] = LAZY
     env["PYTHONPATH"] = ":".join(sys.path)
