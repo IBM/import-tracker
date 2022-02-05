@@ -5,6 +5,7 @@ Tests for the main entrypoint
 # Standard
 from contextlib import contextmanager
 import json
+import logging
 import sys
 
 # Third Party
@@ -74,3 +75,20 @@ def test_file_without_parent_path(capsys):
     # Just check the keys. The values are funky because of this being run from
     # within a test
     assert list(parsed_out.keys()) == ["google.protobuf"]
+
+
+def test_with_logging(capsys, LAZY_MODE):
+    """Run the main function with logging turned up and make sure the output is
+    not changed
+    """
+    with cli_args(
+        "--name", "sample_lib.submod1", "--log_level", str(logging.DEBUG - 3)
+    ):
+        main()
+    captured = capsys.readouterr()
+    assert captured.out
+    parsed_out = json.loads(captured.out)
+    assert list(parsed_out.keys()) == ["sample_lib.submod1"]
+    assert (set(parsed_out["sample_lib.submod1"]) - BASE_SYS_MODULES) == {
+        "conditional_deps"
+    }
