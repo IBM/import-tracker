@@ -38,7 +38,8 @@ MODE_ENV_VAR = "IMPORT_TRACKER_MODE"
 # This global holds the current default import mode when not provided in the
 # environment. This may be updated with the default_import_mode contextmanager.
 _default_import_mode = BEST_EFFORT
-_all_import_modes = [LAZY, BEST_EFFORT, PROACTIVE, TRACKING]
+_tracking_impl_mode = "_tracking_impl_mode"
+_all_import_modes = [LAZY, BEST_EFFORT, PROACTIVE, TRACKING, _tracking_impl_mode]
 
 # The global mapping from modules to dependencies
 _module_dep_mapping = {}
@@ -115,11 +116,22 @@ def import_module(name: str, package: Optional[str] = None) -> ModuleType:
 
     # If we're doing a TRACKING import. In this case, we're going to perform the
     # the tracking in a subprocess and then return a lazy importer
-    if import_mode == TRACKING:
+    elif import_mode == TRACKING:
         _track_deps(name, package)
+        return LazyModule(name, package)
 
-    # For either LAZY or TRACKING, we return a Lazy Importer
-    return LazyModule(name, package)
+    # If we're inside a tracking subprocess, we use the lay import trap to avoid
+    # importing any other tracked modules. This lets the module under
+    # inspection import in isolation, even if attributes of other tracked
+    # modules are accessed at import time.
+    elif import_mode == _tracking_impl_mode:
+        return _TrackingLazyImportTrap(name, package)
+
+    elif import_mode == LAZY:
+        return LazyModule(name, package)
+
+    # This indicates that there's a mode we missed somehow!
+    raise ValueError(f"Programming Error: Tracking mode {tracking_mode} not handled!")
 
 
 def get_required_imports(name: str) -> List[str]:
@@ -172,6 +184,25 @@ def _get_import_mode():
     return os.environ.get(MODE_ENV_VAR, _default_import_mode)
 
 
+class _TrackingLazyImportTrap(ModuleType):
+    """This module subclass is used to simulate an imported module when running
+    in tracking mode so that modules besides the one being tracked are never
+    imported, even lazily.
+    """
+
+    def __init__(self, name: str, package: Optional[str] = None):
+        """Hang onto the import args for logging"""
+        self.__name = name
+        self.__package = package
+
+    def __getattr__(self, name: str) -> any:
+        """When asked for an attribute, make sure the wrapped module is imported
+        and then delegate
+        """
+        log.debug2("Trapping getattr(%s) for %s.%s", name, self.__package, self.__name)
+        return self
+
+
 class LazyModule(ModuleType):
     """A LazyModule is a module subclass that wraps another module but imports
     it lazily and then aliases __getattr__ to the lazily imported module.
@@ -213,7 +244,7 @@ def _track_deps(name: str, package: Optional[str] = None):
         cmd += f" --package {package}"
     log.debug2("Spawning subprocess with command: %s", cmd)
     env = dict(copy.deepcopy(os.environ))
-    env[MODE_ENV_VAR] = LAZY
+    env[MODE_ENV_VAR] = _tracking_impl_mode
     env["PYTHONPATH"] = ":".join(sys.path)
     res = subprocess.run(shlex.split(cmd), stdout=subprocess.PIPE, env=env)
     assert res.returncode == 0, f"Failed to track {name}"
