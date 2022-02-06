@@ -20,6 +20,7 @@ import warnings
 
 # Local
 from .lazy_import_errors import lazy_import_errors
+from .log import log
 
 ## Public Globals ##############################################################
 
@@ -78,6 +79,9 @@ def set_static_tracker(fname: Optional[str] = None):
         )
 
     # Map the calling package name to the final file name in the global mapping of tracked modules
+    log.debug(
+        "Enabling static tracking for %s in file %s", calling_package.__name__, fname
+    )
     global _static_trackers
     _static_trackers[calling_package.__name__] = fname
 
@@ -93,6 +97,7 @@ def import_module(name: str, package: Optional[str] = None) -> ModuleType:
 
     # Get the current import mode
     import_mode = _get_import_mode()
+    log.debug2("Importing with mode %s", import_mode)
 
     # If not running in TRACKING mode, load the static tracker if available
     if import_mode in [PROACTIVE, LAZY, BEST_EFFORT]:
@@ -183,6 +188,7 @@ class LazyModule(ModuleType):
         and then delegate
         """
         if self.__wrapped_module is None:
+            log.debug1("Triggering lazy import for %s.%s", self.__package, self.__name)
             self.__wrapped_module = importlib.import_module(
                 self.__name,
                 self.__package,
@@ -197,13 +203,15 @@ def _track_deps(name: str, package: Optional[str] = None):
     """
 
     # Run this package as a subprocess and collect the results
-    cmd = "{} -W ignore -m {} --name {}".format(
+    cmd = "{} -W ignore -m {} --name {} --log_level {}".format(
         sys.executable,
         sys.modules[__name__].__package__,
         name,
+        log.root.level,
     )
     if package is not None:
         cmd += f" --package {package}"
+    log.debug2("Spawning subprocess with command: %s", cmd)
     env = dict(copy.deepcopy(os.environ))
     env[MODE_ENV_VAR] = LAZY
     env["PYTHONPATH"] = ":".join(sys.path)
