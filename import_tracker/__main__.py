@@ -18,6 +18,7 @@ import os
 import sys
 
 # Local
+from .import_tracker import _tracking_impl_mode, default_import_mode
 from .log import log
 
 ## Implementation Details ######################################################
@@ -149,9 +150,10 @@ def main():
     if args.log_level <= logging.DEBUG - 3:
         _setup_logging_meta_finder(args.name)
 
-    # Do the import
+    # Do the import with tracking impl mode by default
     log.debug("Importing %s.%s", args.package, args.name)
-    imported = importlib.import_module(args.name, package=args.package)
+    with default_import_mode(_tracking_impl_mode):
+        imported = importlib.import_module(args.name, package=args.package)
 
     # Get the set of non-standard modules after the import and filter out any
     # modules that are parents of the target module itself
