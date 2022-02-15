@@ -10,7 +10,7 @@ the import_module implementation when running in TRACKING mode.
 # Standard
 from concurrent.futures import ThreadPoolExecutor
 from types import ModuleType
-from typing import Set
+from typing import Optional, Set
 import argparse
 import copy
 import importlib
@@ -182,10 +182,12 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         self._tracked_module_parts = tracked_module.split(".")
         self._import_mapping = {}
 
-    def find_spec(self, fullname: str, *args, **kwargs) -> None:
-        """The find_spec implementation for this finder will never return a
-        valid Spec. Instead, it simply uses this as a hook to track the stack
-        when a given import is requested.
+    def find_spec(
+        self, fullname: str, *args, **kwargs
+    ) -> Optional[importlib.machinery.ModuleSpec]:
+        """The find_spec implementation for this finder tracks the source of the
+        import call for the given module and determines if it is on the critical
+        path for the target module.
 
         https://docs.python.org/3/library/importlib.html#importlib.abc.MetaPathFinder.find_spec
 
@@ -194,9 +196,11 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
                 The fully qualified module name under import
 
         Returns:
-            result:  None
-                This finder always returns None to defer to the rest of the
-                meta_path finders once the import has been tracked
+            spec:  Optional[importlib.machinery.ModuleSpec]
+                If the desired import is not on the critical path for the target
+                module, a spec with a _DeferredLoader will be returned. If the
+                import is on the critical path, None will be returned to defer
+                to the rest of the "real" finders.
         """
 
         # Get the stack trace and determine if this module is directly below
