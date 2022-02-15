@@ -27,6 +27,52 @@ from .log import log
 
 ## Implementation Details ######################################################
 
+# The path where global modules are found
+_std_lib_dir = os.path.realpath(os.path.dirname(os.__file__))
+
+_has_splittable_file_attr = lambda mod: hasattr(mod, "__file__") and isinstance(
+    mod.__file__, str
+)
+
+# The name of this package
+_this_pkg = sys.modules[__name__].__package__
+
+
+def _get_import_parent_path(mod) -> str:
+    """Get the parent directory of the given module"""
+    # Some standard libs have no __file__ attribute
+    if not hasattr(mod, "__file__"):
+        return _std_lib_dir
+
+    # In some cases, we might have __file__ set, but it may be some other value; for the case
+    # of namespace packages, this might be set to None, which is the default value.
+    # ref: https://docs.python.org/3/library/importlib.html#importlib.machinery.ModuleSpec.origin
+    if not _has_splittable_file_attr(mod):
+        return None
+
+    # If the module comes from an __init__, we need to pop two levels off
+    file_path = mod.__file__
+    if os.path.splitext(os.path.basename(mod.__file__))[0] == "__init__":
+        file_path = os.path.dirname(file_path)
+    parent_path = os.path.dirname(file_path)
+    return parent_path
+
+
+def _get_non_std_modules(mod_names: Set[str]) -> Set[str]:
+    """Take a snapshot of the non-standard modules currently imported"""
+
+    return {
+        mod_name.split(".")[0]
+        for mod_name, mod in sys.modules.items()
+        if mod_name in mod_names
+        and not mod_name.startswith("_")
+        and "." not in mod_name
+        and _get_import_parent_path(mod) != _std_lib_dir
+        and _has_splittable_file_attr(mod)
+        and os.path.splitext(mod.__file__)[-1] not in [".so", ".dylib"]
+        and mod_name.split(".")[0] != _this_pkg
+    }
+
 
 class _DeferredModule(ModuleType):
     """The _DeferredModule is used to defer imports of modules which are not
@@ -194,20 +240,6 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         # Explicitly return None for pedanticism!
         return None
 
-        # # TODO!!! Figure out how to make the lazily loaded modules not recurse
-        # # infinitely!
-        #
-        # # # Explicitly return None for pedanticism!
-        # # return None
-        #
-        # # Set up a lazy loader that wraps the Loader that defers the error to
-        # # exec_module time
-        # loader = _LazyErrorLoader()
-        #
-        # # Create a spec from this loader so that it acts at import-time like it
-        # # loaded correctly
-        # return importlib.util.spec_from_loader(fullname, loader)
-
     def get_all_downstreams(
         self,
         fullname: str,
@@ -327,7 +359,9 @@ def main():
     imported = importlib.import_module(args.name, package=args.package)
 
     # Set up the mapping with the external downstreams for the tracked package
-    downstream_mapping = {args.name: tracker_finder.get_all_downstreams(args.name)}
+    downstream_mapping = {
+        args.name: _get_non_std_modules(tracker_finder.get_all_downstreams(args.name))
+    }
 
     # If recursing, do so now by spawning a subprocess for each internal
     # downstream. This must be done in a separate interpreter instance so that
@@ -349,7 +383,7 @@ def main():
         for internal_downstream in all_internals:
             cmd = cmd = "{} -W ignore -m {} --name {} --log_level {}".format(
                 sys.executable,
-                sys.modules[__name__].__package__,
+                _this_pkg,
                 internal_downstream,
                 log_level,
             )
