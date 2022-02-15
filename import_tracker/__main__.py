@@ -8,6 +8,7 @@ the import_module implementation when running in TRACKING mode.
 """
 
 # Standard
+from concurrent.futures import ThreadPoolExecutor
 from types import ModuleType
 from typing import Set
 import argparse
@@ -307,6 +308,33 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         return all_downstreams
 
 
+def track_sub_module(sub_module_name, package_name, log_level):
+    """This function is intended to run inside of a ThreadPoolExecutor and will
+    launch a subprocess to ensure that the tracking happens in isolation
+    """
+    # Set up the environment with all sys.paths available (included those added
+    # in code)
+    env = dict(copy.deepcopy(os.environ))
+    env["PYTHONPATH"] = ":".join(sys.path)
+
+    # Set up the command to run this module
+    cmd = cmd = "{} -W ignore -m {} --name {} --log_level {}".format(
+        sys.executable,
+        _this_pkg,
+        sub_module_name,
+        log_level,
+    )
+    if package_name is not None:
+        cmd += f" --package {package_name}"
+
+    # Launch the process
+    proc = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, env=env)
+
+    # Wait for the result and parse it as json
+    result, _ = proc.communicate()
+    return json.loads(result)
+
+
 ## Main ########################################################################
 
 
@@ -342,6 +370,13 @@ def main():
         help="Recursively perform tracking on all nested modules",
         default=False,
     )
+    parser.add_argument(
+        "--num_jobs",
+        "-j",
+        type=int,
+        help="Number of workers to spawn when recursing",
+        default=None,
+    )
     args = parser.parse_args()
 
     # Set the level on the shared logger
@@ -376,26 +411,19 @@ def main():
             if downstream.startswith(args.name)
         ]
 
-        # TODO: Use a process pool
-        procs = []
-        env = dict(copy.deepcopy(os.environ))
-        env["PYTHONPATH"] = ":".join(sys.path)
+        # Create the thread pool to manage the subprocesses
+        pool = ThreadPoolExecutor(max_workers=args.num_jobs)
+        futures = []
         for internal_downstream in all_internals:
-            cmd = cmd = "{} -W ignore -m {} --name {} --log_level {}".format(
-                sys.executable,
-                _this_pkg,
-                internal_downstream,
-                log_level,
-            )
-            if args.package is not None:
-                cmd += f" --package {args.package}"
-            procs.append(
-                subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, env=env)
+            futures.append(
+                pool.submit(
+                    track_sub_module, internal_downstream, args.package, log_level
+                )
             )
 
-        for proc in procs:
-            result, _ = proc.communicate()
-            downstream_mapping.update(json.loads(result))
+        # Wait for all futures to complete and merge into the mapping
+        for future in futures:
+            downstream_mapping.update(future.result())
 
     # Get all of the downstreams for the module in question, including internals
     log.debug("Downstream Mapping: %s", downstream_mapping)
