@@ -10,7 +10,7 @@ the import_module implementation when running in TRACKING mode.
 # Standard
 from concurrent.futures import ThreadPoolExecutor
 from types import ModuleType
-from typing import Optional, Set
+from typing import List, Optional, Set
 import argparse
 import copy
 import importlib
@@ -206,17 +206,11 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         # Get the stack trace and determine if this module is directly below
         # a module within the tracked package (may itself be a tracked package
         # module)
-        stack = inspect.stack()
-        non_importlib_mods = list(
-            filter(
-                lambda x: x.split(".")[0] not in ["importlib", "__main__"],
-                [frame.frame.f_globals["__name__"] for frame in stack],
-            )
-        )
-        if not non_importlib_mods:
+        import_stack = self._get_import_stack(fullname)
+        if not import_stack:
+            log.debug2("Short circuit for top-level import")
             return None
-        log.debug3("[%s] Non importlib mods: %s", fullname, non_importlib_mods)
-        upstream_module = non_importlib_mods[0]
+        upstream_module = import_stack[-1]
         log.debug3("[%s] Upstream mod: %s", fullname, upstream_module)
 
         # If the upstream is the tracked package, populate the tree
@@ -230,7 +224,7 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         lazy_load = not (
             self._in_tracked_module(fullname)
             or self._contains_tracked_module(fullname)
-            or self._tracked_module in non_importlib_mods
+            or self._tracked_module in import_stack
         )
         log.debug2("[%s] Lazy load? %s", fullname, lazy_load)
 
@@ -310,6 +304,23 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
                 mod for mod in all_downstreams if not self._in_tracked_module(mod)
             }
         return all_downstreams
+
+    def _get_import_stack(self, fullname: str) -> List[str]:
+        """Encapsulated helper to get the full stack of imports that triggered
+        the import of the given module. The import on the farthest right is the
+        direct parent of the current import.
+        """
+        stack = inspect.stack()
+        non_importlib_mods = list(
+            filter(
+                lambda x: x.split(".")[0] not in ["importlib", "__main__"],
+                [frame.frame.f_globals["__name__"] for frame in stack],
+            )
+        )
+        if not non_importlib_mods:
+            return None
+        log.debug3("[%s] Non importlib mods: %s", fullname, non_importlib_mods)
+        return list(reversed(non_importlib_mods))
 
 
 def track_sub_module(sub_module_name, package_name, log_level):
