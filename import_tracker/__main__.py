@@ -132,6 +132,9 @@ class _DeferredModule(ModuleType):
                             meta_finder,
                         )
                         self.__wrapped_module = importlib.util.module_from_spec(spec)
+                        self.__wrapped_module.__loader__.exec_module(
+                            self.__wrapped_module
+                        )
                         break
 
         return getattr(self.__wrapped_module, name)
