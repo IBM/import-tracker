@@ -181,6 +181,7 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         self._tracked_module = tracked_module
         self._tracked_module_parts = tracked_module.split(".")
         self._import_mapping = {}
+        self._import_stack = []
 
     def find_spec(
         self, fullname: str, *args, **kwargs
@@ -208,7 +209,7 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         # module)
         import_stack = self._get_import_stack(fullname)
         if not import_stack:
-            log.debug2("Short circuit for top-level import")
+            log.debug2("Short circuit for top-level import: %s", fullname)
             return None
         upstream_module = import_stack[-1]
         log.debug3("[%s] Upstream mod: %s", fullname, upstream_module)
@@ -310,17 +311,24 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         the import of the given module. The import on the farthest right is the
         direct parent of the current import.
         """
-        stack = inspect.stack()
-        non_importlib_mods = list(
-            filter(
-                lambda x: x.split(".")[0] not in ["importlib", "__main__"],
-                [frame.frame.f_globals["__name__"] for frame in stack],
-            )
-        )
-        if not non_importlib_mods:
-            return None
-        log.debug3("[%s] Non importlib mods: %s", fullname, non_importlib_mods)
-        return list(reversed(non_importlib_mods))
+        # Starting on the most recent module in the stack, pop off imports until
+        # we find one that is still initializing
+        log.debug2("Starting import stack: %s", self._import_stack)
+        for idx, mod_name in enumerate(self._import_stack):
+            mod = sys.modules.get(mod_name)
+            if mod is not None and not getattr(mod.__spec__, "_initializing", False):
+                self._import_stack = self._import_stack[:idx]
+                break
+        log.debug2("Cleaned import stack: %s", self._import_stack)
+
+        # Copy the stack as the return from this search
+        current_stack = copy.copy(self._import_stack)
+
+        # Add this import to the stack
+        self._import_stack.append(fullname)
+
+        # Return the stack (without the current import)
+        return current_stack
 
 
 def track_sub_module(sub_module_name, package_name, log_level):
