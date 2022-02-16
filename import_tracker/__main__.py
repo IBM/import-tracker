@@ -229,6 +229,7 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
             self._in_tracked_module(fullname)
             or self._contains_tracked_module(fullname)
             or self._tracked_module in import_stack
+            or not fullname.startswith(self._tracked_module_parts[0])
         )
         log.debug2("[%s] Lazy load? %s", fullname, lazy_load)
 
