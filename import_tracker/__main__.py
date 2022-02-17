@@ -132,10 +132,20 @@ class _DeferredModule(ModuleType):
                             meta_finder,
                         )
                         self.__wrapped_module = importlib.util.module_from_spec(spec)
+                        # DEBUG -- Honestly not sure why I added this???
+                        # self.__wrapped_module.__loader__.load_module()
                         self.__wrapped_module.__loader__.exec_module(
                             self.__wrapped_module
                         )
                         break
+
+        # DEBUG
+        if name == "__all__":
+            log.debug3("Fetched %s.__all__", self.__spec.name)
+            if log.level <= logging.DEBUG4:
+                for line in traceback.format_stack():
+                    log.debug4(line.strip())
+            log.debug3(dir(self.__wrapped_module))
 
         return getattr(self.__wrapped_module, name)
 
@@ -225,11 +235,22 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         # If this package is not on the critical path for the target module,
         # we defer it with a lazy module, otherwise we return None to indicate
         # that the real loader should do its job
+        in_tracked_module = self._in_tracked_module(fullname)
+        contains_tracked_module = self._contains_tracked_module(fullname)
+        downstream_from_tracked_module = self._downstream_from_tracked_module(
+            import_stack
+        )
+        # DEBUG
+        third_party = not fullname.startswith(self._tracked_module_parts[0])
+        log.debug3("In tracked module: %s", in_tracked_module)
+        log.debug3("Contains tracked module: %s", contains_tracked_module)
+        log.debug3("Downstream from tracked module: %s", downstream_from_tracked_module)
+        log.debug3("Third party: %s", third_party)
         lazy_load = not (
-            self._in_tracked_module(fullname)
-            or self._contains_tracked_module(fullname)
-            or self._tracked_module in import_stack
-            or not fullname.startswith(self._tracked_module_parts[0])
+            in_tracked_module
+            or contains_tracked_module
+            or downstream_from_tracked_module
+            or third_party
         )
         log.debug2("[%s] Lazy load? %s", fullname, lazy_load)
 
@@ -280,6 +301,18 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         """Determine if the given module is a parent of the tracked module"""
         mod_name_parts = mod_name.split(".")
         return self._tracked_module_parts[: len(mod_name_parts)] == mod_name_parts
+
+    def _downstream_from_tracked_module(self, import_stack: List[str]) -> bool:
+        """Determine if the current import is downstream from the tracked module"""
+        return self._tracked_module in import_stack
+        # DEBUG
+        # if self._tracked_module not in import_stack:
+        #     return False
+        # idx = import_stack.index(self._tracked_module)
+        # return all(
+        #     mod[:len(self._tracked_module)] == self._tracked_module
+        #     for mod in import_stack[idx:]
+        # )
 
     def _get_all_downstreams(
         self,
@@ -418,7 +451,13 @@ def main():
 
     # Do the import
     log.debug("Importing %s.%s", args.package, args.name)
-    imported = importlib.import_module(args.name, package=args.package)
+    try:
+        imported = importlib.import_module(args.name, package=args.package)
+    except Exception as err:
+        log.error("Error on top-level import [%s.%s]: %s", args.package, args.name, err)
+        # DEBUG
+        # breakpoint()
+        raise
 
     # Set up the mapping with the external downstreams for the tracked package
     downstream_mapping = {
@@ -439,18 +478,33 @@ def main():
         ]
 
         # Create the thread pool to manage the subprocesses
-        pool = ThreadPoolExecutor(max_workers=args.num_jobs)
-        futures = []
-        for internal_downstream in all_internals:
-            futures.append(
-                pool.submit(
-                    track_sub_module, internal_downstream, args.package, log_level
+        if args.num_jobs > 0:
+            pool = ThreadPoolExecutor(max_workers=args.num_jobs)
+            futures = []
+            for internal_downstream in all_internals:
+                futures.append(
+                    pool.submit(
+                        track_sub_module, internal_downstream, args.package, log_level
+                    )
                 )
-            )
 
-        # Wait for all futures to complete and merge into the mapping
-        for future in futures:
-            downstream_mapping.update(future.result())
+            # Wait for all futures to complete and merge into the mapping
+            for future in futures:
+                downstream_mapping.update(future.result())
+
+        else:
+            for internal_downstream in all_internals:
+                try:
+                    downstream_mapping.update(
+                        track_sub_module(internal_downstream, args.package, log_level)
+                    )
+                except Exception as err:
+                    log.error(
+                        "Error while tracking submodule [%s]: %s",
+                        internal_downstream,
+                        err,
+                    )
+                    raise
 
     # Get all of the downstreams for the module in question, including internals
     log.debug("Downstream Mapping: %s", downstream_mapping)
