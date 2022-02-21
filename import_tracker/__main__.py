@@ -31,12 +31,13 @@ from .log import log
 # The path where global modules are found
 _std_lib_dir = os.path.realpath(os.path.dirname(os.__file__))
 
-_has_splittable_file_attr = lambda mod: hasattr(mod, "__file__") and isinstance(
-    mod.__file__, str
-)
-
 # The name of this package
 _this_pkg = sys.modules[__name__].__package__
+
+
+def _has_splittable_file_attr(mod) -> bool:
+    """Determine if the given module has a __file__ attr that can be manipulated"""
+    return hasattr(mod, "__file__") and isinstance(mod.__file__, str)
 
 
 def _get_import_parent_path(mod) -> str:
@@ -76,95 +77,85 @@ def _get_non_std_modules(mod_names: Set[str]) -> Set[str]:
 
 
 class _DeferredModule(ModuleType):
-    """The _DeferredModule is used to defer imports of modules which are not
-    part of the tracking tree for the target library. It does its best to avoid
-    actually importing the target module, but if the target module does in fact
-    use a deferred module, it will be actively imported.
+    """A _DeferredModule is a module subclass that wraps another module but imports
+    it lazily and then aliases __getattr__ to the lazily imported module.
     """
 
-    def __init__(self, spec, finder_args, finder_kwargs):
-        """Initialize with the args given to the finder so that the real finders
-        can be used when the module actually needs to be imported
-        """
-        self.__spec = spec
-        self.__finder_args = finder_args
-        self.__finder_kwargs = finder_kwargs
+    def __init__(self, name: str, package: Optional[str] = None):
+        """Hang onto the import args to use lazily"""
+        self.__name = name
+        self.__package = package
         self.__wrapped_module = None
-        log.debug3("Done constructing lazy module for %s", self.__spec.name)
 
     def __getattr__(self, name: str) -> any:
         """When asked for an attribute, make sure the wrapped module is imported
         and then delegate
         """
 
-        # If this is one of the special attributes accessed during the import
-        # we'll just return None and not trigger the import
-        if name in [
-            "__name__",
-            "__loader__",
-            "__package__",
-            "__path__",
-            "__file__",
-            "__cached__",
-        ]:
-            log.debug4(
-                "Not triggering load of [%s] for getattr(%s)", self.__spec.name, name
-            )
-            return None
-
         if self.__wrapped_module is None:
-            log.debug1("Triggering lazy import for %s", self.__spec.name)
-            if log.level <= logging.DEBUG4:
-                for line in traceback.format_stack():
-                    log.debug4(line.strip())
 
-            # Iterate through all of the `sys.meta_path` finders _except_ the
-            # tracking finder and see if we can find a loader that is valid
-            for meta_finder in sys.meta_path:
-                if not isinstance(meta_finder, ImportTrackerMetaFinder):
-                    spec = meta_finder.find_spec(
-                        *self.__finder_args, **self.__finder_kwargs
-                    )
-                    if spec is not None:
-                        log.debug3(
-                            "Found valid spec for [%s] from %s",
-                            self.__spec.name,
-                            meta_finder,
-                        )
-                        self.__wrapped_module = importlib.util.module_from_spec(spec)
-                        # DEBUG -- Honestly not sure why I added this???
-                        # self.__wrapped_module.__loader__.load_module()
-                        self.__wrapped_module.__loader__.exec_module(
-                            self.__wrapped_module
-                        )
-                        break
+            # If this is one of the special attributes accessed during the import
+            # we'll just return None and not trigger the import
+            if name in [
+                "__name__",
+                "__loader__",
+                "__package__",
+                "__path__",
+                "__file__",
+                "__cached__",
+            ]:
+                log.debug4(
+                    "Not triggering load of [%s] for getattr(%s)", self.__name, name
+                )
+                return None
 
-        # DEBUG
-        if name == "__all__":
-            log.debug3("Fetched %s.__all__", self.__spec.name)
-            if log.level <= logging.DEBUG4:
-                for line in traceback.format_stack():
-                    log.debug4(line.strip())
-            log.debug3(dir(self.__wrapped_module))
+            log.debug1(
+                "Triggering lazy import for %s.%s.%s", self.__package, self.__name, name
+            )
+            self.do_import()
 
         return getattr(self.__wrapped_module, name)
 
+    def do_import(self):
+        """Trigger the import"""
+        if self.__wrapped_module is not None:
+            return
 
-class _DeferredLoader(importlib.abc.Loader):
-    """The _DeferredLoader is used when the tracking finder determines that the
-    given module is not on the critical path for the target module.
+        if log.level <= logging.DEBUG4:
+            for line in traceback.format_stack():
+                log.debug4(line.strip())
+
+        # Remove this module from sys.modules and re-import it
+        self_mod_name = self.__spec__.name
+        log.debug2("Clearing sys.modules of parents of [%s]", self_mod_name)
+        self_mod_name_parts = self_mod_name.split(".")
+        popped_mods = {}
+        for i in range(1, len(self_mod_name_parts) + 1):
+            pop_mod_name = ".".join(self_mod_name_parts[:i])
+            if isinstance(sys.modules.get(pop_mod_name), self.__class__):
+                log.debug2("Removing sys.modules[%s]", pop_mod_name)
+                popped_mods[pop_mod_name] = sys.modules.pop(pop_mod_name)
+
+        self.__wrapped_module = importlib.import_module(
+            self.__name,
+            self.__package,
+        )
+
+        # Re-decorate the popped mods to fix existing references
+        for popped_mod_name, popped_mod in popped_mods.items():
+            updated_mod = sys.modules.get(popped_mod_name)
+            assert updated_mod, f"No re-imported version of [{popped_mod_name}] found"
+            popped_mod.__dict__.update(updated_mod.__dict__)
+
+
+class _LazyLoader(importlib.abc.Loader):
+    """This "loader" can be used with a MetaFinder to catch not-found modules
+    and raise a ModuleNotFound error lazily when the module is used rather than
+    at import time.
     """
 
-    def __init__(self, finder_args, finder_kwargs):
-        """Initialize with the args given to the finder so that the real finders
-        can be used when the module actually needs to be imported
-        """
-        self._finder_args = finder_args
-        self._finder_kwargs = finder_kwargs
-
     def create_module(self, spec):
-        log.debug3("Creating lazy module for %s", spec.name)
-        return _DeferredModule(spec, self._finder_args, self._finder_kwargs)
+        return _DeferredModule(spec.name)
 
     def exec_module(self, *_, **__):
         """Nothing to do here because the errors will be thrown by the module
@@ -193,8 +184,10 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         """
         self._tracked_module = tracked_module
         self._tracked_module_parts = tracked_module.split(".")
-        self._import_mapping = {}
-        self._import_stack = []
+        self._enabled = True
+        self._starting_modules = None
+        self._ending_modules = None
+        self._deferred_modules = set()
 
     def find_spec(
         self, fullname: str, *args, **kwargs
@@ -217,155 +210,91 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
                 to the rest of the "real" finders.
         """
 
-        # Get the stack trace and determine if this module is directly below
-        # a module within the tracked package (may itself be a tracked package
-        # module)
-        import_stack = self._get_import_stack(fullname)
-        if not import_stack:
-            log.debug2("Short circuit for top-level import: %s", fullname)
-            return None
-        upstream_module = import_stack[-1]
-        log.debug3("[%s] Upstream mod: %s", fullname, upstream_module)
+        # We want to lazy load this module if it's not on the critical path for
+        # the target module. We define the critical path as:
+        #
+        #   - Modules that are direct parents of the target
+        #   - Modules that are themselves downstream of the target
+        #   - The target itself
 
-        # If the upstream is the tracked package, populate the tree
-        if self._in_tracked_module(upstream_module):
-            log.debug2("Adding [%s] <- [%s]", fullname, upstream_module)
-            self._import_mapping.setdefault(upstream_module, set()).add(fullname)
-
-        # If this package is not on the critical path for the target module,
-        # we defer it with a lazy module, otherwise we return None to indicate
-        # that the real loader should do its job
-        in_tracked_module = self._in_tracked_module(fullname)
-        contains_tracked_module = self._contains_tracked_module(fullname)
-        downstream_from_tracked_module = self._downstream_from_tracked_module(
-            import_stack
-        )
-        # DEBUG
-        third_party = not fullname.startswith(self._tracked_module_parts[0])
-        log.debug3("In tracked module: %s", in_tracked_module)
-        log.debug3("Contains tracked module: %s", contains_tracked_module)
-        log.debug3("Downstream from tracked module: %s", downstream_from_tracked_module)
-        log.debug3("Third party: %s", third_party)
-        lazy_load = not (
-            in_tracked_module
-            or contains_tracked_module
-            or downstream_from_tracked_module
-            or third_party
-        )
-        log.debug2("[%s] Lazy load? %s", fullname, lazy_load)
-
-        # If lazy loading, "find" the module with a lazy loader
-        if lazy_load:
-            loader = _DeferredLoader(
-                finder_args=tuple([fullname] + list(args)),
-                finder_kwargs=kwargs,
-            )
+        # If this finder is enabled and the requested import is not the target,
+        # defer it with a lazy module
+        if (
+            self._enabled
+            and fullname != self._tracked_module
+            and not self._is_parent_module(fullname)
+            and fullname not in self._deferred_modules
+            and fullname.split(".")[0] == self._tracked_module_parts[0]
+        ):
+            log.debug3("Deferring import of [%s]", fullname)
+            self._deferred_modules.add(fullname)
+            loader = _LazyLoader()
             return importlib.util.spec_from_loader(fullname, loader)
 
-        # Explicitly return None for pedanticism!
+        # If this is the target, disable this finder for future imports
+        if fullname == self._tracked_module:
+            log.debug(
+                "Tracked module [%s] found. Tracking started", self._tracked_module
+            )
+            self._starting_modules = set(sys.modules.keys())
+            log.debug2("Starting modules: %s", self._starting_modules)
+            self._enabled = False
+
+            # Remove all lazy modules from sys.modules to force them to be
+            # reimported
+            lazy_modules = [
+                mod_name
+                for mod_name, mod in sys.modules.items()
+                if isinstance(mod, _DeferredModule)
+            ]
+            for mod_name in lazy_modules:
+                del sys.modules[mod_name]
+
+        # Check to see if the tracked module has finished importing and take a
+        # snapshot of the sys.modules if so
+        if self._ending_modules is None and not getattr(
+            getattr(sys.modules.get(self._tracked_module, {}), "__spec__", {}),
+            "_initializing",
+            True,
+        ):
+            log.debug("Tracked module [%s] finished importing", self._tracked_module)
+            self._ending_modules = set(sys.modules.keys()) - {fullname}
+            log.debug2("Ending modules: %s", self._ending_modules)
+
+        # If there are any upstream modules from the target fullname that are
+        # lazy, trigger their active imports
+        log.debug3("Allowing import of [%s]", fullname)
+        name_parts = fullname.split(".")
+        for i in range(1, len(name_parts) + 1):
+            parent_mod_name = ".".join(name_parts[:i])
+            parent_mod = sys.modules.get(parent_mod_name)
+            if isinstance(parent_mod, _DeferredModule):
+                log.debug3("Triggering parent import for [%s]", parent_mod_name)
+                parent_mod.do_import()
+
+        # If downstream (inclusive) of the tracked module, let everything import
+        # cleanly as normal by deferring to the real finders
         return None
 
-    def get_all_downstreams(
-        self,
-        fullname: str,
-        include_internal: bool = False,
-    ) -> Set[str]:
-        """Recursively fill in the downstreams for the given module based on the
-        mapping built at import time
-
-        Args:
-            fullname:  str
-                The fully-qualified name of the module to fetch downstreams for
-            include_internal:  bool
-                Include the names of other packages inside of the tracked
-                package that are needed by the target package
-
-        Returns:
-            downstreams:  Set[str]
-                The set of unique import module names required downstream from
-                the requested module
-        """
-        return self._get_all_downstreams(fullname, include_internal, set())
+    def get_all_new_modules(self) -> Set[str]:
+        """Get all of the imports that have happened since the start"""
+        assert self._starting_modules is not None, f"Target module never impoted!"
+        if self._ending_modules is None:
+            self._ending_modules = set(sys.modules.keys())
+        return {
+            mod
+            for mod in self._ending_modules - self._starting_modules
+            if not self._is_parent_module(mod)
+        }
 
     ## Implementation Details ##
 
-    def _in_tracked_module(self, mod_name: str) -> bool:
-        """Determine if the given module is contained within the tracked module"""
-        mod_name_parts = mod_name.split(".")
-        return (
-            mod_name_parts[: len(self._tracked_module_parts)]
-            == self._tracked_module_parts
-        )
-
-    def _contains_tracked_module(self, mod_name: str) -> bool:
-        """Determine if the given module is a parent of the tracked module"""
-        mod_name_parts = mod_name.split(".")
-        return self._tracked_module_parts[: len(mod_name_parts)] == mod_name_parts
-
-    def _downstream_from_tracked_module(self, import_stack: List[str]) -> bool:
-        """Determine if the current import is downstream from the tracked module"""
-        return self._tracked_module in import_stack
-        # DEBUG
-        # if self._tracked_module not in import_stack:
-        #     return False
-        # idx = import_stack.index(self._tracked_module)
-        # return all(
-        #     mod[:len(self._tracked_module)] == self._tracked_module
-        #     for mod in import_stack[idx:]
-        # )
-
-    def _get_all_downstreams(
-        self,
-        fullname: str,
-        include_internal: bool,
-        all_downstreams: Set[str],
-    ) -> Set[str]:
-        """Recursive implementation of get_all_downstreams"""
-
-        # Find the direct downstreams of this module
-        downstreams = self._import_mapping.get(fullname, set())
-        log.debug4("Raw downstreams for [%s]: %s", fullname, downstreams)
-
-        # Iterate through any downstreams that we haven't already seen and
-        # recursively add them to the set of downstreams for this module
-        new_downstreams = downstreams - all_downstreams
-        log.debug4("New downstreams for [%s]: %s", fullname, new_downstreams)
-        all_downstreams = all_downstreams.union(downstreams)
-        for downstream in new_downstreams:
-            all_downstreams = all_downstreams.union(
-                self._get_all_downstreams(downstream, include_internal, all_downstreams)
-            )
-
-        # If not including internal dependencies, strip those out
-        if not include_internal:
-            all_downstreams = {
-                mod for mod in all_downstreams if not self._in_tracked_module(mod)
-            }
-        return all_downstreams
-
-    def _get_import_stack(self, fullname: str) -> List[str]:
-        """Encapsulated helper to get the full stack of imports that triggered
-        the import of the given module. The import on the farthest right is the
-        direct parent of the current import.
+    def _is_parent_module(self, fullname: str) -> bool:
+        """Determine if the given module fullname is a direct parent of the
+        tracked module
         """
-        # Starting on the most recent module in the stack, pop off imports until
-        # we find one that is still initializing
-        log.debug2("Starting import stack: %s", self._import_stack)
-        for idx, mod_name in enumerate(self._import_stack):
-            mod = sys.modules.get(mod_name)
-            if mod is not None and not getattr(mod.__spec__, "_initializing", False):
-                self._import_stack = self._import_stack[:idx]
-                break
-        log.debug2("Cleaned import stack: %s", self._import_stack)
-
-        # Copy the stack as the return from this search
-        current_stack = copy.copy(self._import_stack)
-
-        # Add this import to the stack
-        self._import_stack.append(fullname)
-
-        # Return the stack (without the current import)
-        return current_stack
+        parts = fullname.split(".")
+        return self._tracked_module_parts[: len(parts)] == parts
 
 
 def track_sub_module(sub_module_name, package_name, log_level):
@@ -435,7 +364,7 @@ def main():
         "-j",
         type=int,
         help="Number of workers to spawn when recursing",
-        default=None,
+        default=0,
     )
     args = parser.parse_args()
 
@@ -461,19 +390,16 @@ def main():
 
     # Set up the mapping with the external downstreams for the tracked package
     downstream_mapping = {
-        args.name: _get_non_std_modules(tracker_finder.get_all_downstreams(args.name))
+        args.name: _get_non_std_modules(tracker_finder.get_all_new_modules())
     }
 
     # If recursing, do so now by spawning a subprocess for each internal
     # downstream. This must be done in a separate interpreter instance so that
     # the imports are cleanly reset for each downstream.
     if args.recursive:
-        all_downstreams = tracker_finder.get_all_downstreams(
-            args.name, include_internal=True
-        )
         all_internals = [
             downstream
-            for downstream in all_downstreams
+            for downstream in sys.modules.keys()
             if downstream.startswith(args.name)
         ]
 
