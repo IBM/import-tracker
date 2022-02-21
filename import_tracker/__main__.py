@@ -185,7 +185,8 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         self._tracked_module = tracked_module
         self._tracked_module_parts = tracked_module.split(".")
         self._enabled = True
-        self._starting_modules = None
+        self._starting_modules = set(sys.modules.keys())
+        log.debug2("Starting modules: %s", self._starting_modules)
         self._ending_modules = None
         self._deferred_modules = set()
 
@@ -236,8 +237,6 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
             log.debug(
                 "Tracked module [%s] found. Tracking started", self._tracked_module
             )
-            self._starting_modules = set(sys.modules.keys())
-            log.debug2("Starting modules: %s", self._starting_modules)
             self._enabled = False
 
             # Remove all lazy modules from sys.modules to force them to be
