@@ -49,6 +49,18 @@ def test_lazy_import_happy_package_with_sad_optionals():
     assert not conditional_deps.mod.HAS_FB
 
 
+def test_lazy_import_errors_direct_call():
+    """Test that directly invoking lazy_import_errors as a function will
+    globally perform the setup
+    """
+    import_tracker.lazy_import_errors()
+    # Third Party
+    import foobarbaz
+
+    with pytest.raises(ModuleNotFoundError):
+        foobarbaz.foo()
+
+
 def test_lazy_import_error_with_from():
     """Test that the syntax 'from foo.bar import Baz' does raise lazily"""
     with import_tracker.lazy_import_errors():

@@ -5,7 +5,7 @@ used.
 """
 
 # Standard
-from contextlib import contextmanager
+from contextlib import AbstractContextManager
 from types import ModuleType
 import importlib.abc
 import importlib.util
@@ -15,20 +15,45 @@ import sys
 ## Public ######################################################################
 
 
-@contextmanager
 def lazy_import_errors():
-    """This context manager injects lazy loading as the default loading method
-    for the import statement and then disables it on exit, returning to the
-    standard import semantics
+    """Enable lazy import errors.
+
+    When enabled, lazy import errors will capture imports that would otherwise
+    raise ImportErrors and defer those errors until the last possible moment
+    when the functionality is needed. This is done by returning a special object
+    which can be used in all "non-meaningful" ways without raising, but when
+    used in a "meaningful" way will raise.
+
+    This function may be used either as a function directly or as a
+    contextmanager which will disable lazy errors upon exit.
     """
-    try:
-        sys.meta_path.append(_LazyMetaFinder())
-        yield
-    finally:
-        sys.meta_path.pop()
+    return _LazyImportErrorCtx()
 
 
 ## Implementation Details ######################################################
+
+
+class _LazyImportErrorCtx(AbstractContextManager):
+    """This class implements the Context Manager version of lazy_import_errors"""
+
+    def __init__(self):
+        """This class is always constructed inside of lazy_import_errors which
+        acts as the context manager, so the __enter__ implementation lives in
+        the constructor.
+        """
+        if sys.meta_path and not isinstance(sys.meta_path[-1], _LazyErrorMetaFinder):
+            sys.meta_path.append(_LazyErrorMetaFinder())
+
+    @staticmethod
+    def __enter__():
+        """Nothing to do in __enter__ since it's done in __init__"""
+        pass
+
+    @classmethod
+    def __exit__(cls, *_, **__):
+        """On exit, ensure there are no lazy meta finders left"""
+        while sys.meta_path and isinstance(sys.meta_path[-1], _LazyErrorMetaFinder):
+            sys.meta_path.pop()
 
 
 class _LazyErrorAttr(type):
@@ -318,7 +343,7 @@ class _LazyErrorLoader(importlib.abc.Loader):
         """
 
 
-class _LazyMetaFinder(importlib.abc.MetaPathFinder):
+class _LazyErrorMetaFinder(importlib.abc.MetaPathFinder):
     """A lazy finder that always claims to be able to find the module, but will
     potentially raise an ImportError when the module is used
     """
