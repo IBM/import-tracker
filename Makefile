@@ -9,7 +9,7 @@ help: ## Display this help.
 
 .PHONY: test
 test: ## Run the unit tests
-	./scripts/run_tests.sh
+	PARALLEL=1 ./scripts/run_tests.sh
 
 .PHONY: fmt
 fmt: ## Run code formatting

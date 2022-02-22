@@ -6,5 +6,6 @@ PyYaml>=6.0
 pytest>=6.2.5
 pytest-asyncio>=0.17.0
 pytest-cov>=3.0.0
+pytest-xdist>=2.5.0
 # This is only used to validate the funky google namespace corner case
 protobuf==3.19.1
