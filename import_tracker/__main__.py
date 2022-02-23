@@ -1,29 +1,34 @@
 """
-This main entrypoint is used as an implementation detail for tracking the deps
-of individual modules. The challenge is that projects which use multiple tracked
-imports need to track them in isolation to avoid cross-contaminating the
-dependency sets. This entrypoint solves that by running a _single_ import in
-tracking mode and reporting the results. This is then run as a subprocess from
-the import_module implementation when running in TRACKING mode.
+This main entrypoint allows import_tracker to run as an independent script to
+track the imports for a given module.
+
+Example Usage:
+
+# Track a single module
+python -m import_tracker --name my_library
+
+# Track a module and all of the sub-modules it contains
+python -m import_tracker --name my_library --recursive --num_jobs 2
+
+# Track a module with relative import syntax
+python -m import_tracker --name .my_sub_module --package my_library
 """
 
 # Standard
 from concurrent.futures import ThreadPoolExecutor
 from types import ModuleType
-from typing import List, Optional, Set
+from typing import Optional, Set
 import argparse
-import copy
 import importlib
-import inspect
 import json
 import logging
 import os
-import shlex
-import subprocess
 import sys
 import traceback
 
 # Local
+from .constants import THIS_PACKAGE
+from .import_tracker import track_module
 from .log import log
 
 ## Implementation Details ######################################################
@@ -31,26 +36,12 @@ from .log import log
 # The path where global modules are found
 _std_lib_dir = os.path.realpath(os.path.dirname(os.__file__))
 
-# The name of this package
-_this_pkg = sys.modules[__name__].__package__
-
-
-def _has_splittable_file_attr(mod) -> bool:
-    """Determine if the given module has a __file__ attr that can be manipulated"""
-    return hasattr(mod, "__file__") and isinstance(mod.__file__, str)
-
 
 def _get_import_parent_path(mod) -> str:
     """Get the parent directory of the given module"""
     # Some standard libs have no __file__ attribute
     if not hasattr(mod, "__file__"):
         return _std_lib_dir
-
-    # In some cases, we might have __file__ set, but it may be some other value; for the case
-    # of namespace packages, this might be set to None, which is the default value.
-    # ref: https://docs.python.org/3/library/importlib.html#importlib.machinery.ModuleSpec.origin
-    if not _has_splittable_file_attr(mod):
-        return None
 
     # If the module comes from an __init__, we need to pop two levels off
     file_path = mod.__file__
@@ -70,9 +61,8 @@ def _get_non_std_modules(mod_names: Set[str]) -> Set[str]:
         and not mod_name.startswith("_")
         and "." not in mod_name
         and _get_import_parent_path(mod) != _std_lib_dir
-        and _has_splittable_file_attr(mod)
         and os.path.splitext(mod.__file__)[-1] not in [".so", ".dylib"]
-        and mod_name.split(".")[0] != _this_pkg
+        and mod_name.split(".")[0] != THIS_PACKAGE
     }
 
 
@@ -116,11 +106,12 @@ class _DeferredModule(ModuleType):
 
         return getattr(self.__wrapped_module, name)
 
+    def imported(self) -> bool:
+        """Return whether or not this module has actually imported"""
+        return self.__wrapped_module is not None
+
     def do_import(self):
         """Trigger the import"""
-        if self.__wrapped_module is not None:
-            return
-
         if log.level <= logging.DEBUG4:
             for line in traceback.format_stack():
                 log.debug4(line.strip())
@@ -211,13 +202,6 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
                 to the rest of the "real" finders.
         """
 
-        # We want to lazy load this module if it's not on the critical path for
-        # the target module. We define the critical path as:
-        #
-        #   - Modules that are direct parents of the target
-        #   - Modules that are themselves downstream of the target
-        #   - The target itself
-
         # If this finder is enabled and the requested import is not the target,
         # defer it with a lazy module
         if (
@@ -247,6 +231,7 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
                 if isinstance(mod, _DeferredModule)
             ]
             for mod_name in lazy_modules:
+                log.debug2("Removing lazy module [%s]", mod_name)
                 del sys.modules[mod_name]
 
         # Check to see if the tracked module has finished importing and take a
@@ -257,29 +242,19 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
             True,
         ):
             log.debug("Tracked module [%s] finished importing", self._tracked_module)
-            self._ending_modules = set(sys.modules.keys()) - {fullname}
+            self._set_ending_modules(fullname)
             log.debug2("Ending modules: %s", self._ending_modules)
-
-        # If there are any upstream modules from the target fullname that are
-        # lazy, trigger their active imports
-        log.debug3("Allowing import of [%s]", fullname)
-        name_parts = fullname.split(".")
-        for i in range(1, len(name_parts) + 1):
-            parent_mod_name = ".".join(name_parts[:i])
-            parent_mod = sys.modules.get(parent_mod_name)
-            if isinstance(parent_mod, _DeferredModule):
-                log.debug3("Triggering parent import for [%s]", parent_mod_name)
-                parent_mod.do_import()
 
         # If downstream (inclusive) of the tracked module, let everything import
         # cleanly as normal by deferring to the real finders
+        log.debug3("Allowing import of [%s]", fullname)
         return None
 
     def get_all_new_modules(self) -> Set[str]:
         """Get all of the imports that have happened since the start"""
         assert self._starting_modules is not None, f"Target module never impoted!"
         if self._ending_modules is None:
-            self._ending_modules = set(sys.modules.keys())
+            self._set_ending_modules()
         return {
             mod
             for mod in self._ending_modules - self._starting_modules
@@ -295,32 +270,36 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         parts = fullname.split(".")
         return self._tracked_module_parts[: len(parts)] == parts
 
+    def _set_ending_modules(self, trigger_module_name: Optional[str] = None):
+        """Set the ending module set for the target"""
+        if self._ending_modules is not None:
+            return
 
-def track_sub_module(sub_module_name, package_name, log_level):
-    """This function is intended to run inside of a ThreadPoolExecutor and will
-    launch a subprocess to ensure that the tracking happens in isolation
-    """
-    # Set up the environment with all sys.paths available (included those added
-    # in code)
-    env = dict(copy.deepcopy(os.environ))
-    env["PYTHONPATH"] = ":".join(sys.path)
+        # Avoid infinite recursion by setting _ending_modules to a preliminary
+        # empty set
+        self._ending_modules = {}
 
-    # Set up the command to run this module
-    cmd = cmd = "{} -W ignore -m {} --name {} --log_level {}".format(
-        sys.executable,
-        _this_pkg,
-        sub_module_name,
-        log_level,
-    )
-    if package_name is not None:
-        cmd += f" --package {package_name}"
+        # Find all attributes on existing modules which are themselves deferred
+        # modules and trigger their imports. This fixes the case where a module
+        # imports a sibling's attribute which was previously imported and
+        # deferred
+        deferred_attrs = []
+        while True:
+            for mod_name, mod in sys.modules.items():
+                if mod_name.startswith(self._tracked_module):
+                    for attr_name, attr in vars(mod).items():
+                        if isinstance(attr, _DeferredModule) and not attr.imported():
+                            deferred_attrs.append((mod_name, attr_name, attr))
+            if not deferred_attrs:
+                break
+            for mod_name, attr_name, attr in deferred_attrs:
+                log.debug2("Finalizing deferred import for %s.%s", mod_name, attr_name)
+                attr.do_import()
+            deferred_attrs = []
 
-    # Launch the process
-    proc = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, env=env)
-
-    # Wait for the result and parse it as json
-    result, _ = proc.communicate()
-    return json.loads(result)
+        # Capture the set of imports in sys.modules (excluding the module that
+        # triggered this)
+        self._ending_modules = set(sys.modules.keys()) - {trigger_module_name}
 
 
 ## Main ########################################################################
@@ -373,23 +352,29 @@ def main():
         log_level = int(args.log_level)
     logging.basicConfig(level=log_level)
 
+    # Determine the unqualified module name and use it elsewhere
+    full_module_name = args.name
+    if args.package is not None:
+        assert args.name.startswith(
+            "."
+        ), "When providing --package, module name must be relative (start with '.')"
+        full_module_name = f"{args.package}{args.name}"
+
     # Create the tracking meta finder
-    tracker_finder = ImportTrackerMetaFinder(args.name)
+    tracker_finder = ImportTrackerMetaFinder(full_module_name)
     sys.meta_path = [tracker_finder] + sys.meta_path
 
     # Do the import
-    log.debug("Importing %s.%s", args.package, args.name)
+    log.debug("Importing %s", full_module_name)
     try:
-        imported = importlib.import_module(args.name, package=args.package)
+        imported = importlib.import_module(full_module_name)
     except Exception as err:
-        log.error("Error on top-level import [%s.%s]: %s", args.package, args.name, err)
-        # DEBUG
-        # breakpoint()
+        log.error("Error on top-level import [%s]: %s", full_module_name, err)
         raise
 
     # Set up the mapping with the external downstreams for the tracked package
     downstream_mapping = {
-        args.name: _get_non_std_modules(tracker_finder.get_all_new_modules())
+        full_module_name: _get_non_std_modules(tracker_finder.get_all_new_modules())
     }
 
     # If recursing, do so now by spawning a subprocess for each internal
@@ -399,7 +384,8 @@ def main():
         all_internals = [
             downstream
             for downstream in sys.modules.keys()
-            if downstream.startswith(args.name)
+            if downstream.startswith(full_module_name)
+            and downstream != full_module_name
         ]
 
         # Create the thread pool to manage the subprocesses
@@ -409,7 +395,10 @@ def main():
             for internal_downstream in all_internals:
                 futures.append(
                     pool.submit(
-                        track_sub_module, internal_downstream, args.package, log_level
+                        track_module,
+                        module_name=internal_downstream,
+                        log_level=log_level,
+                        recursive=False,
                     )
                 )
 
@@ -420,10 +409,20 @@ def main():
         else:
             for internal_downstream in all_internals:
                 try:
-                    downstream_mapping.update(
-                        track_sub_module(internal_downstream, args.package, log_level)
+                    log.debug(
+                        "Starting sub-module tracking for [%s]", internal_downstream
                     )
-                except Exception as err:
+                    downstream_mapping.update(
+                        track_module(
+                            module_name=internal_downstream,
+                            log_level=log_level,
+                            recursive=False,
+                        )
+                    )
+                # This is useful for catching errors caused by unexpected corner
+                # cases. If it's triggered, it's a sign of a bug in the library,
+                # so we don't have ways to explicitly exercise this in tests.
+                except Exception as err:  # pragma: no cover
                     log.error(
                         "Error while tracking submodule [%s]: %s",
                         internal_downstream,
@@ -443,5 +442,5 @@ def main():
     )
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":
     main()
