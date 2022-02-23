@@ -14,8 +14,16 @@ import tempfile
 import pytest
 
 # Local
+from import_tracker.lazy_import_errors import _LazyErrorMetaFinder
 from test.helpers import reset_sys_modules
 import import_tracker
+
+
+@pytest.fixture
+def reset_lazy_import_errors():
+    yield
+    while sys.meta_path and isinstance(sys.meta_path[-1], _LazyErrorMetaFinder):
+        sys.meta_path.pop()
 
 
 ######################## Tests for Direct Invocation of the Context Manager #######################
@@ -49,7 +57,7 @@ def test_lazy_import_happy_package_with_sad_optionals():
     assert not conditional_deps.mod.HAS_FB
 
 
-def test_lazy_import_errors_direct_call():
+def test_lazy_import_errors_direct_call(reset_lazy_import_errors):
     """Test that directly invoking lazy_import_errors as a function will
     globally perform the setup
     """
