@@ -11,7 +11,6 @@ from .import_tracker import (
     MODE_ENV_VAR,
     PROACTIVE,
     TRACKING,
-    LazyModule,
     default_import_mode,
     get_required_imports,
     get_required_packages,
@@ -20,3 +19,4 @@ from .import_tracker import (
     set_static_tracker,
 )
 from .lazy_import_errors import lazy_import_errors
+from .lazy_module import LazyModule
