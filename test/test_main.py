@@ -28,10 +28,6 @@ def cli_args(*args):
     sys.argv = prev_argv
 
 
-# We keep track of the base system modules names so that they can be removed
-# from the results in the tests
-BASE_SYS_MODULES = set(sys.modules.keys())
-
 ## Tests #######################################################################
 
 
@@ -43,9 +39,7 @@ def test_without_package(capsys):
     assert captured.out
     parsed_out = json.loads(captured.out)
     assert list(parsed_out.keys()) == ["sample_lib.submod1"]
-    assert (set(parsed_out["sample_lib.submod1"]) - BASE_SYS_MODULES) == {
-        "conditional_deps"
-    }
+    assert (set(parsed_out["sample_lib.submod1"])) == {"conditional_deps"}
 
 
 def test_with_package(capsys):
@@ -56,9 +50,7 @@ def test_with_package(capsys):
     assert captured.out
     parsed_out = json.loads(captured.out)
     assert list(parsed_out.keys()) == ["sample_lib.submod1"]
-    assert (set(parsed_out["sample_lib.submod1"]) - BASE_SYS_MODULES) == {
-        "conditional_deps"
-    }
+    assert (set(parsed_out["sample_lib.submod1"])) == {"conditional_deps"}
 
 
 def test_file_without_parent_path(capsys):
@@ -87,9 +79,7 @@ def test_with_logging(capsys):
     assert captured.out
     parsed_out = json.loads(captured.out)
     assert list(parsed_out.keys()) == ["sample_lib.submod1"]
-    assert (set(parsed_out["sample_lib.submod1"]) - BASE_SYS_MODULES) == {
-        "conditional_deps"
-    }
+    assert (set(parsed_out["sample_lib.submod1"])) == {"conditional_deps"}
 
 
 def test_import_time_error(capsys):
@@ -115,8 +105,24 @@ def test_sibling_import(capsys):
     captured = capsys.readouterr()
     assert captured.out
     parsed_out = json.loads(captured.out)
-    assert (set(parsed_out["inter_mod_deps.submod1"]) - BASE_SYS_MODULES) == {"alog"}
-    assert (set(parsed_out["inter_mod_deps.submod2"]) - BASE_SYS_MODULES) == {
+    assert (set(parsed_out["inter_mod_deps.submod1"])) == {"alog"}
+    assert (set(parsed_out["inter_mod_deps.submod2"])) == {
         "alog",
+        "yaml",
+    }
+    assert (set(parsed_out["inter_mod_deps.submod2.foo"])) == {
+        "yaml",
+    }
+    assert (set(parsed_out["inter_mod_deps.submod2.bar"])) == {
+        "yaml",
+    }
+    assert (set(parsed_out["inter_mod_deps.submod3"])) == {
+        "alog",
+        "yaml",
+    }
+    assert (set(parsed_out["inter_mod_deps.submod4"])) == {
+        "yaml",
+    }
+    assert (set(parsed_out["inter_mod_deps.submod5"])) == {
         "yaml",
     }

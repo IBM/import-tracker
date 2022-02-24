@@ -7,3 +7,5 @@ import yaml
 
 # Local
 from .. import submod1
+from . import foo
+from .foo import Foo
