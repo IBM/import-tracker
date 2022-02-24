@@ -12,7 +12,7 @@ import sys
 import pytest
 
 # Local
-from .helpers import LAZY_MODE, reset_sys_modules
+from .helpers import reset_sys_modules
 from import_tracker.__main__ import main
 import import_tracker
 
@@ -28,39 +28,29 @@ def cli_args(*args):
     sys.argv = prev_argv
 
 
-# We keep track of the base system modules names so that they can be removed
-# from the results in the tests
-BASE_SYS_MODULES = set(sys.modules.keys())
-
 ## Tests #######################################################################
 
 
-def test_without_package(capsys, LAZY_MODE):
+def test_without_package(capsys):
     """Run the main function against the sample lib and check the output"""
     with cli_args("--name", "sample_lib.submod1"):
         main()
     captured = capsys.readouterr()
-    assert not captured.err
     assert captured.out
     parsed_out = json.loads(captured.out)
     assert list(parsed_out.keys()) == ["sample_lib.submod1"]
-    assert (set(parsed_out["sample_lib.submod1"]) - BASE_SYS_MODULES) == {
-        "conditional_deps"
-    }
+    assert (set(parsed_out["sample_lib.submod1"])) == {"conditional_deps"}
 
 
-def test_with_package(capsys, LAZY_MODE):
+def test_with_package(capsys):
     """Run the main function with a package argument"""
     with cli_args("--name", ".submod1", "--package", "sample_lib"):
         main()
     captured = capsys.readouterr()
-    assert not captured.err
     assert captured.out
     parsed_out = json.loads(captured.out)
     assert list(parsed_out.keys()) == ["sample_lib.submod1"]
-    assert (set(parsed_out["sample_lib.submod1"]) - BASE_SYS_MODULES) == {
-        "conditional_deps"
-    }
+    assert (set(parsed_out["sample_lib.submod1"])) == {"conditional_deps"}
 
 
 def test_file_without_parent_path(capsys):
@@ -68,7 +58,6 @@ def test_file_without_parent_path(capsys):
     with cli_args("--name", "google.protobuf"):
         main()
     captured = capsys.readouterr()
-    assert not captured.err
     assert captured.out
     parsed_out = json.loads(captured.out)
 
@@ -77,7 +66,7 @@ def test_file_without_parent_path(capsys):
     assert list(parsed_out.keys()) == ["google.protobuf"]
 
 
-def test_with_logging(capsys, LAZY_MODE):
+def test_with_logging(capsys):
     """Run the main function with logging turned up and make sure the output is
     not changed
     """
@@ -86,9 +75,54 @@ def test_with_logging(capsys, LAZY_MODE):
     ):
         main()
     captured = capsys.readouterr()
+    assert captured.err
     assert captured.out
     parsed_out = json.loads(captured.out)
     assert list(parsed_out.keys()) == ["sample_lib.submod1"]
-    assert (set(parsed_out["sample_lib.submod1"]) - BASE_SYS_MODULES) == {
-        "conditional_deps"
+    assert (set(parsed_out["sample_lib.submod1"])) == {"conditional_deps"}
+
+
+def test_import_time_error(capsys):
+    """Check that an exception from the imported module is forwarded"""
+    with cli_args("--name", "bad_lib"):
+        with pytest.raises(RuntimeError):
+            main()
+
+
+def test_submodule_error(capsys):
+    """Check that an exception from a submodule is forwarded"""
+    with cli_args("--name", "bad_lib"):
+        with pytest.raises(RuntimeError):
+            main()
+
+
+def test_sibling_import(capsys):
+    """Make sure that a library with a submodule that imports a sibling
+    submodule properly tracks dependencies through the sibling
+    """
+    with cli_args("--name", "inter_mod_deps", "--recursive"):
+        main()
+    captured = capsys.readouterr()
+    assert captured.out
+    parsed_out = json.loads(captured.out)
+    assert (set(parsed_out["inter_mod_deps.submod1"])) == {"alog"}
+    assert (set(parsed_out["inter_mod_deps.submod2"])) == {
+        "alog",
+        "yaml",
+    }
+    assert (set(parsed_out["inter_mod_deps.submod2.foo"])) == {
+        "yaml",
+    }
+    assert (set(parsed_out["inter_mod_deps.submod2.bar"])) == {
+        "yaml",
+    }
+    assert (set(parsed_out["inter_mod_deps.submod3"])) == {
+        "alog",
+        "yaml",
+    }
+    assert (set(parsed_out["inter_mod_deps.submod4"])) == {
+        "yaml",
+    }
+    assert (set(parsed_out["inter_mod_deps.submod5"])) == {
+        "yaml",
     }

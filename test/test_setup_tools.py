@@ -39,9 +39,13 @@ def test_parse_requirements_happy():
         # Make sure the right parsing happened
         assert requirements == ["import-tracker"]
         assert extras_require == {
-            "submod3": sorted(["PyYaml >= 6.0", "alchemy-logging>=1.0.3"]),
-            "submod1": sorted(["conditional_deps"]),
-            "submod2": sorted(["alchemy-logging>=1.0.3"]),
+            "sample_lib.nested.submod3": sorted(
+                ["PyYaml >= 6.0", "alchemy-logging>=1.0.3"]
+            ),
+            "sample_lib.nested": sorted(["PyYaml >= 6.0", "alchemy-logging>=1.0.3"]),
+            "sample_lib.submod1": sorted(["conditional_deps"]),
+            "sample_lib.submod2": sorted(["alchemy-logging>=1.0.3"]),
+            "sample_lib": sorted(set(sample_lib_requirements) - {"import-tracker"}),
             "all": sorted(sample_lib_requirements),
         }
 
@@ -68,9 +72,34 @@ def test_parse_requirements_add_untracked_reqs():
         assert extras_require["all"] == sorted(reqs)
 
 
-def test_parse_requirements_missing_import_tracker():
-    """Make sure that parse_requirements does require import_tracker (or
-    import-tracker) in the requirements list
+def test_parse_requirements_add_subset_of_submodules():
+    """Make sure that parse_requirements can parse only a subset of the full set
+    of submodules within the target library
+    """
+    with tempfile.NamedTemporaryFile("w") as requirements_file:
+        # Make a requirements file that looks normal
+        requirements_file.write("\n".join(sample_lib_requirements))
+        requirements_file.flush()
+
+        # Parse the reqs for "sample_lib"
+        requirements, extras_require = parse_requirements(
+            requirements_file.name,
+            "sample_lib",
+            ["sample_lib.submod1", "sample_lib.submod2"],
+        )
+
+        # Make sure the right parsing happened
+        assert requirements == ["PyYaml >= 6.0", "import-tracker"]
+        assert extras_require == {
+            "sample_lib.submod1": sorted(["conditional_deps"]),
+            "sample_lib.submod2": sorted(["alchemy-logging>=1.0.3"]),
+            "all": sorted(sample_lib_requirements),
+        }
+
+
+def test_parse_requirements_unknown_extras():
+    """Make sure that parse_requirements raises an error if extras_modules are
+    requested that don't exist
     """
     with tempfile.NamedTemporaryFile("w") as requirements_file:
         # Make a requirements file that is missing import_tracker
@@ -81,4 +110,4 @@ def test_parse_requirements_missing_import_tracker():
 
         # Make sure the assertion is tripped
         with pytest.raises(AssertionError):
-            parse_requirements(requirements_file.name, "sample_lib")
+            parse_requirements(requirements_file.name, "sample_lib", ["foobar"])

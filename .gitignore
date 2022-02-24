@@ -5,3 +5,5 @@ __pycache__
 dist/
 .DS_Store
 .pytest_cache
+.bash_history
+.python_history

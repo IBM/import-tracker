@@ -5,46 +5,23 @@ extras_require sets in a setup.py
 
 # Standard
 from functools import reduce
-from typing import Dict, List, Tuple
-import importlib
-import logging
+from typing import Dict, Iterable, List, Optional, Tuple
+import os
 import re
 import sys
 
 # Local
-from .import_tracker import (
-    _get_required_packages_for_imports,
-    _standardize_package_name,
-    get_required_packages,
-    get_tracked_modules,
-)
+from .constants import THIS_PACKAGE
+from .import_tracker import track_module
+from .log import log
 
-# Shared logger
-log = logging.getLogger("SETUP")
-
-# Regex for parsing requirements
-_REQ_SPLIT_EXPR = re.compile(r"[=><!~\[]")
-
-_ALL_GROUP = "all"
-
-
-def _map_requirements(declared_dependencies, dependency_set):
-    """Given the declared dependencies from requirements.txt and the given
-    programmatic dependency set, return the subset of declared dependencies that
-    matches the dependency set
-    """
-    return sorted(
-        [
-            declared_dependencies[dep.replace("-", "_")]
-            for dep in dependency_set
-            if dep.replace("-", "_") in declared_dependencies
-        ]
-    )
+## Public ######################################################################
 
 
 def parse_requirements(
     requirements_file: str,
     library_name: str,
+    extras_modules: Optional[List[str]] = None,
 ) -> Tuple[List[str], Dict[str, List[str]]]:
     """This helper uses the lists of required modules and parameters for the
     given library to produce requirements and the extras_require dict.
@@ -53,7 +30,10 @@ def parse_requirements(
         requirements_file:  str
             Path to the requirements file for this library
         library_name:  str
-            The name of the library being setup
+            The top-level name of the library package
+        extras_modules:  Optional[List[str]]
+            List of module names that should be used to generate extras_require
+            sets
 
     Returns:
         requirements:  List[str]
@@ -62,9 +42,6 @@ def parse_requirements(
             The extras_require dict to pass to setup()
     """
 
-    # Import the library. This is used at build time, so it's safe to do so.
-    importlib.import_module(library_name)
-
     # Load all requirements from the requirements file
     with open(requirements_file, "r") as handle:
         requirements = {
@@ -72,16 +49,26 @@ def parse_requirements(
             for line in handle.readlines()
             if line.strip() and not line.startswith("#")
         }
-    this_pkg = sys.modules[__name__].__name__.split(".")[0]
-    assert (
-        this_pkg in requirements or this_pkg.replace("_", "-") in requirements
-    ), f"No requirement for {this_pkg} found"
     log.debug("Requirements: %s", requirements)
 
-    # Get the raw import sets for each tracked module
+    # Get the set of required modules for each of the listed extras modules
+    library_import_mapping = track_module(library_name, recursive=True)
+
+    # If no extras_modules are given, track them all
+    if not extras_modules:
+        extras_modules = list(library_import_mapping.keys())
+    log.debug2("Tracking extras modules: %s", extras_modules)
+
+    # Get the import sets for each requested extras
+    missing_extras_modules = [
+        mod for mod in extras_modules if mod not in library_import_mapping
+    ]
+    assert (
+        not missing_extras_modules
+    ), f"No tracked imports found for: {missing_extras_modules}"
     import_sets = {
-        tracked_module.split(".")[-1]: set(get_required_packages(tracked_module))
-        for tracked_module in get_tracked_modules(library_name)
+        mod: set(_get_required_packages_for_imports(library_import_mapping[mod]))
+        for mod in extras_modules
     }
     log.debug("Import sets: %s", import_sets)
 
@@ -92,7 +79,6 @@ def parse_requirements(
             common_imports = import_set
         else:
             common_imports = common_imports.intersection(import_set)
-    common_imports.add(_get_required_packages_for_imports([this_pkg])[0])
     log.debug("Common imports: %s", common_imports)
 
     # Compute the sets of unique requirements for each tracked module
@@ -135,3 +121,119 @@ def parse_requirements(
         set_name: _map_requirements(standardized_requirements, import_set)
         for set_name, import_set in extras_require_sets.items()
     }
+
+
+## Implementation Details ######################################################
+
+# Regex for parsing requirements
+_REQ_SPLIT_EXPR = re.compile(r"[=><!~\[]")
+
+# Exprs for finding module names
+_PKG_VERSION_EXPR = re.compile("-[0-9]")
+_PKG_NAME_EXPR = re.compile("^Name: ([^ \t\n]+)")
+
+# Extras require group name for the union of all dependencies
+_ALL_GROUP = "all"
+
+# Lazily created global mapping from module name to package name
+_MODULE_TO_PKG = None
+
+
+def _map_requirements(declared_dependencies, dependency_set):
+    """Given the declared dependencies from requirements.txt and the given
+    programmatic dependency set, return the subset of declared dependencies that
+    matches the dependency set
+    """
+    return sorted(
+        [
+            declared_dependencies[dep.replace("-", "_")]
+            for dep in dependency_set
+            if dep.replace("-", "_") in declared_dependencies
+        ]
+    )
+
+
+def _map_modules_to_package_names():
+    """Look for any information we can get to map from the name of the imported
+    module to the name of the package that installed that module.
+
+    WARNING: This is a best-effort function! It attempts to look for common
+        conventions from pip, but it's very possible to break this function by
+        non-standard installation topology.
+    """
+    modules_to_package_names = {}
+    for path_dir in sys.path:
+
+        # Traverse all "RECORD" files holding records of the pip installations
+        for root, dirs, files in os.walk(path_dir):
+            if "RECORD" in files:
+
+                # Parse the package name from the info file name
+                package_file = os.path.relpath(root, path_dir).split("/")[-1]
+                package_name = _PKG_VERSION_EXPR.split(package_file)[0]
+
+                # Look for a more accurate package name in METADATA. This can
+                # fix the case where the actual package uses a '-' but the wheel
+                # uses an '_'.
+                if "METADATA" in files:
+                    md_file = os.path.join(root, "METADATA")
+                    # Parse the package name from the metadata file
+                    with open(md_file, "r") as handle:
+                        for line in handle.readlines():
+                            match = _PKG_NAME_EXPR.match(line.strip())
+                            if match:
+                                package_name = match.group(1)
+                                break
+
+                # Iterate each line in RECORD and look for lines that look like
+                # unpacking python modules
+                with open(os.path.join(root, "RECORD"), "r") as handle:
+                    for modname in map(
+                        lambda mn: os.path.splitext(mn)[0],
+                        filter(
+                            lambda mn: (
+                                mn
+                                and mn != "__pycache__"
+                                and os.path.splitext(mn)[-1]
+                                not in [".pth", ".dist-info", ".egg-info"]
+                                and "." not in mn
+                            ),
+                            {
+                                line.split("/")[0].split(",")[0].strip()
+                                for line in handle.readlines()
+                            },
+                        ),
+                    ):
+                        modules_to_package_names.setdefault(modname, set()).add(
+                            _standardize_package_name(package_name)
+                        )
+
+    return modules_to_package_names
+
+
+def _standardize_package_name(raw_package_name):
+    """Helper to convert the arbitrary ways packages can be represented to a
+    common (matchable) representation
+    """
+    return raw_package_name.strip().lower().replace("-", "_")
+
+
+def _get_required_packages_for_imports(imports: Iterable[str]) -> List[str]:
+    """Get the set of installable packages required by this list of imports"""
+    # Lazily create the global mapping
+    global _MODULE_TO_PKG
+    if _MODULE_TO_PKG is None:
+        _MODULE_TO_PKG = _map_modules_to_package_names()
+
+    # Merge the required packages for each
+    required_pkgs = set()
+    for mod in imports:
+        # If there is a known mapping, use it
+        if mod in _MODULE_TO_PKG:
+            required_pkgs.update(_MODULE_TO_PKG[mod])
+
+        # Otherwise, assume that the name of the module is itself the name of
+        # the package
+        else:
+            required_pkgs.add(mod)
+    return sorted(list(required_pkgs))

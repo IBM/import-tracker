@@ -9,7 +9,7 @@ help: ## Display this help.
 
 .PHONY: test
 test: ## Run the unit tests
-	./scripts/run_tests.sh
+	PARALLEL=1 ./scripts/run_tests.sh
 
 .PHONY: fmt
 fmt: ## Run code formatting
@@ -27,4 +27,10 @@ develop.build: ## Build the development environment container
 
 .PHONY: develop
 develop:	develop.build ## Run the develop shell with the local codebase mounted
-	docker run --rm -it --entrypoint bash -w /src -v ${PWD}:/src import-tracker-develop
+	touch .bash_history
+	docker run --rm -it \
+		--entrypoint bash \
+		-w /src \
+		-v ${PWD}:/src \
+		-v ${PWD}/.bash_history:/root/.bash_history \
+		import-tracker-develop
