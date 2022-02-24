@@ -71,10 +71,9 @@ class _DeferredModule(ModuleType):
     it lazily and then aliases __getattr__ to the lazily imported module.
     """
 
-    def __init__(self, name: str, package: Optional[str] = None):
+    def __init__(self, name: str):
         """Hang onto the import args to use lazily"""
         self.__name = name
-        self.__package = package
         self.__wrapped_module = None
 
     def __getattr__(self, name: str) -> any:
@@ -99,16 +98,20 @@ class _DeferredModule(ModuleType):
                 )
                 return None
 
-            log.debug1(
-                "Triggering lazy import for %s.%s.%s", self.__package, self.__name, name
-            )
+            log.debug1("Triggering lazy import for %s.%s", self.__name, name)
             self.do_import()
 
         return getattr(self.__wrapped_module, name)
 
+    @property
     def imported(self) -> bool:
         """Return whether or not this module has actually imported"""
         return self.__wrapped_module is not None
+
+    @property
+    def name(self) -> str:
+        """Expose the name of this module"""
+        return self.__name
 
     def do_import(self):
         """Trigger the import"""
@@ -123,14 +126,14 @@ class _DeferredModule(ModuleType):
         popped_mods = {}
         for i in range(1, len(self_mod_name_parts) + 1):
             pop_mod_name = ".".join(self_mod_name_parts[:i])
-            if isinstance(sys.modules.get(pop_mod_name), self.__class__):
+            sys_mod = sys.modules.get(pop_mod_name)
+            if isinstance(sys_mod, self.__class__) and not sys_mod.imported:
                 log.debug2("Removing sys.modules[%s]", pop_mod_name)
                 popped_mods[pop_mod_name] = sys.modules.pop(pop_mod_name)
 
-        self.__wrapped_module = importlib.import_module(
-            self.__name,
-            self.__package,
-        )
+        log.debug2("Performing deferred import of [%s]", self.__name)
+        self.__wrapped_module = importlib.import_module(self.__name)
+        log.debug2("Done with deferred import of [%s]", self.__name)
 
         # Re-decorate the popped mods to fix existing references
         for popped_mod_name, popped_mod in popped_mods.items():
@@ -147,6 +150,25 @@ class _LazyLoader(importlib.abc.Loader):
 
     def create_module(self, spec):
         return _DeferredModule(spec.name)
+
+    def exec_module(self, *_, **__):
+        """Nothing to do here because the errors will be thrown by the module
+        created in create_module
+        """
+
+
+class _PreloadedLoader(importlib.abc.Loader):
+    """This "loader" is used to prevent reloading of modules which have already
+    been loaded but removed from sys.modules.
+    """
+
+    def __init__(self, preloaded_module: ModuleType):
+        """Construct with the pre-loaded module"""
+        self.__preloaded_module = preloaded_module
+
+    def create_module(self, spec):
+        log.debug3("Returning preloaded module for %s", spec.name)
+        return self.__preloaded_module
 
     def exec_module(self, *_, **__):
         """Nothing to do here because the errors will be thrown by the module
@@ -245,6 +267,21 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
             self._set_ending_modules(fullname)
             log.debug2("Ending modules: %s", self._ending_modules)
 
+        # In certain corner cases, our screwing with sys.modules can result in
+        # this meta finder being invoked with a module name that is already
+        # imported. In that case, we need to NOT re-import.
+        if fullname in sys.modules:
+            sys_mod = sys.modules[fullname]
+            log.debug3("Returning pre-loaded module loader [%s]: %s", fullname, sys_mod)
+            log.debug3(isinstance(sys_mod, _DeferredModule))
+            # This line is really important! The implementation of importlib
+            # will treat this as a reload if the module is already in
+            # sys.modules which can cause it to double-create classes with
+            # global side-effects
+            del sys.modules[fullname]
+            loader = _PreloadedLoader(sys_mod)
+            return importlib.util.spec_from_loader(fullname, loader)
+
         # If downstream (inclusive) of the tracked module, let everything import
         # cleanly as normal by deferring to the real finders
         log.debug3("Allowing import of [%s]", fullname)
@@ -288,13 +325,16 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
             for mod_name, mod in sys.modules.items():
                 if mod_name.startswith(self._tracked_module.split(".")[0]):
                     for attr_name, attr in vars(mod).items():
-                        if isinstance(attr, _DeferredModule) and not attr.imported():
+                        if isinstance(attr, _DeferredModule) and not attr.imported:
                             deferred_attrs.append((mod_name, attr_name, attr))
             if not deferred_attrs:
                 break
             for mod_name, attr_name, attr in deferred_attrs:
                 log.debug2("Finalizing deferred import for %s.%s", mod_name, attr_name)
                 attr.do_import()
+                log.debug2(
+                    "Done finalizing deferred import for %s.%s", mod_name, attr_name
+                )
             deferred_attrs = []
 
         # Capture the set of imports in sys.modules (excluding the module that
