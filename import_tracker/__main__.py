@@ -286,7 +286,7 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         deferred_attrs = []
         while True:
             for mod_name, mod in sys.modules.items():
-                if mod_name.startswith(self._tracked_module):
+                if mod_name.startswith(self._tracked_module.split(".")[0]):
                     for attr_name, attr in vars(mod).items():
                         if isinstance(attr, _DeferredModule) and not attr.imported():
                             deferred_attrs.append((mod_name, attr_name, attr))
