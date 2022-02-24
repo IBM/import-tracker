@@ -94,11 +94,11 @@ class _DeferredModule(ModuleType):
                 "__cached__",
             ]:
                 log.debug4(
-                    "Not triggering load of [%s] for getattr(%s)", self.__name, name
+                    "Not triggering load of [%s] for getattr(%s)", self.name, name
                 )
                 return None
 
-            log.debug1("Triggering lazy import for %s.%s", self.__name, name)
+            log.debug1("Triggering lazy import for %s.%s", self.name, name)
             self.do_import()
 
         return getattr(self.__wrapped_module, name)
@@ -120,9 +120,8 @@ class _DeferredModule(ModuleType):
                 log.debug4(line.strip())
 
         # Remove this module from sys.modules and re-import it
-        self_mod_name = self.__spec__.name
-        log.debug2("Clearing sys.modules of parents of [%s]", self_mod_name)
-        self_mod_name_parts = self_mod_name.split(".")
+        log.debug2("Clearing sys.modules of parents of [%s]", self.name)
+        self_mod_name_parts = self.name.split(".")
         popped_mods = {}
         for i in range(1, len(self_mod_name_parts) + 1):
             pop_mod_name = ".".join(self_mod_name_parts[:i])
@@ -131,9 +130,9 @@ class _DeferredModule(ModuleType):
                 log.debug2("Removing sys.modules[%s]", pop_mod_name)
                 popped_mods[pop_mod_name] = sys.modules.pop(pop_mod_name)
 
-        log.debug2("Performing deferred import of [%s]", self.__name)
-        self.__wrapped_module = importlib.import_module(self.__name)
-        log.debug2("Done with deferred import of [%s]", self.__name)
+        log.debug2("Performing deferred import of [%s]", self.name)
+        self.__wrapped_module = importlib.import_module(self.name)
+        log.debug2("Done with deferred import of [%s]", self.name)
 
         # Re-decorate the popped mods to fix existing references
         for popped_mod_name, popped_mod in popped_mods.items():
@@ -187,25 +186,6 @@ class _LazyLoader(importlib.abc.Loader):
 
     def create_module(self, spec):
         return _DeferredModule(spec.name)
-
-    def exec_module(self, *_, **__):
-        """Nothing to do here because the errors will be thrown by the module
-        created in create_module
-        """
-
-
-class _PreloadedLoader(importlib.abc.Loader):
-    """This "loader" is used to prevent reloading of modules which have already
-    been loaded but removed from sys.modules.
-    """
-
-    def __init__(self, preloaded_module: ModuleType):
-        """Construct with the pre-loaded module"""
-        self.__preloaded_module = preloaded_module
-
-    def create_module(self, spec):
-        log.debug3("Returning preloaded module for %s", spec.name)
-        return self.__preloaded_module
 
     def exec_module(self, *_, **__):
         """Nothing to do here because the errors will be thrown by the module
@@ -304,21 +284,6 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
             self._set_ending_modules(fullname)
             log.debug2("Ending modules: %s", self._ending_modules)
 
-        # In certain corner cases, our screwing with sys.modules can result in
-        # this meta finder being invoked with a module name that is already
-        # imported. In that case, we need to NOT re-import.
-        if fullname in sys.modules:
-            sys_mod = sys.modules[fullname]
-            log.debug3("Returning pre-loaded module loader [%s]: %s", fullname, sys_mod)
-            log.debug3(isinstance(sys_mod, _DeferredModule))
-            # This line is really important! The implementation of importlib
-            # will treat this as a reload if the module is already in
-            # sys.modules which can cause it to double-create classes with
-            # global side-effects
-            del sys.modules[fullname]
-            loader = _PreloadedLoader(sys_mod)
-            return importlib.util.spec_from_loader(fullname, loader)
-
         # If downstream (inclusive) of the tracked module, let everything import
         # cleanly as normal by deferring to the real finders
         log.debug3("Allowing import of [%s]", fullname)
@@ -346,8 +311,6 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
 
     def _set_ending_modules(self, trigger_module_name: Optional[str] = None):
         """Set the ending module set for the target"""
-        if self._ending_modules is not None:
-            return
 
         # Avoid infinite recursion by setting _ending_modules to a preliminary
         # empty set
