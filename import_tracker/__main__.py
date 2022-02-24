@@ -141,6 +141,43 @@ class _DeferredModule(ModuleType):
             assert updated_mod, f"No re-imported version of [{popped_mod_name}] found"
             popped_mod.__dict__.update(updated_mod.__dict__)
 
+    def referenced_by(self, module_name: str) -> bool:
+        """Determine if this deferred module is referenced by the module with
+        the given name
+        """
+        # Get the module in question
+        assert (
+            module_name in sys.modules
+        ), f"Programming error: Ref module not found {module_name}"
+        ref_module = sys.modules[module_name]
+        ref_module_pkg = module_name.split(".")[0]
+
+        # Search through the tree of attrs starting at this reference module to
+        # see if any holds a reference
+        mods_to_check = [ref_module]
+        checked_modules = []
+        while mods_to_check:
+            next_mods_to_check = []
+            for mod in mods_to_check:
+                for attr in vars(mod).values():
+                    if attr is self:
+                        return True
+
+                next_mods_to_check.extend(
+                    [
+                        attr
+                        for attr in vars(mod).values()
+                        if isinstance(attr, ModuleType)
+                        and attr.__spec__.name.startswith(ref_module_pkg)
+                        and mod not in checked_modules
+                    ]
+                )
+
+                checked_modules.append(mod)
+            mods_to_check = next_mods_to_check
+
+        return False
+
 
 class _LazyLoader(importlib.abc.Loader):
     """This "loader" can be used with a MetaFinder to catch not-found modules
@@ -322,10 +359,14 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         # deferred
         deferred_attrs = []
         while True:
-            for mod_name, mod in sys.modules.items():
+            for mod_name, mod in list(sys.modules.items()):
                 if mod_name.startswith(self._tracked_module.split(".")[0]):
                     for attr_name, attr in vars(mod).items():
-                        if isinstance(attr, _DeferredModule) and not attr.imported:
+                        if (
+                            isinstance(attr, _DeferredModule)
+                            and not attr.imported
+                            and attr.referenced_by(self._tracked_module)
+                        ):
                             deferred_attrs.append((mod_name, attr_name, attr))
             if not deferred_attrs:
                 break
