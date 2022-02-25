@@ -54,15 +54,13 @@ def _get_import_parent_path(mod) -> str:
 
 def _get_non_std_modules(mod_names: Set[str]) -> Set[str]:
     """Take a snapshot of the non-standard modules currently imported"""
-
     return {
         mod_name.split(".")[0]
         for mod_name, mod in sys.modules.items()
         if mod_name in mod_names
         and not mod_name.startswith("_")
         and "." not in mod_name
-        and _get_import_parent_path(mod) != _std_lib_dir
-        and os.path.splitext(mod.__file__)[-1] not in [".so", ".dylib"]
+        and not _get_import_parent_path(mod).startswith(_std_lib_dir)
         and mod_name.split(".")[0] != THIS_PACKAGE
     }
 
