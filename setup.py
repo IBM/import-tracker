@@ -22,7 +22,7 @@ setup(
     "project by tracking which dependencies are needed by which sub-modules",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.ibm.com/ghart/import_tracker",
+    url="https://github.com/IBM/import-tracker",
     author="Gabe Goodhart",
     author_email="gabe.l.hart@gmail.com",
     license="MIT",
