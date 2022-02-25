@@ -126,3 +126,15 @@ def test_sibling_import(capsys):
     assert (set(parsed_out["inter_mod_deps.submod5"])) == {
         "yaml",
     }
+
+
+def test_lib_with_lazy_imports(capsys):
+    """Make sure that a library which uses import_tracker's lazy import errors
+    and has "traditional" conditional dependencies does not blow up when tracked
+    """
+    with cli_args("--name", "lazy_import_errors"):
+        main()
+    captured = capsys.readouterr()
+    assert captured.out
+    parsed_out = json.loads(captured.out)
+    assert "lazy_import_errors" in parsed_out

@@ -29,6 +29,7 @@ import traceback
 # Local
 from .constants import THIS_PACKAGE
 from .import_tracker import track_module
+from .lazy_import_errors import enable_tracking_mode
 from .log import log
 
 ## Implementation Details ######################################################
@@ -389,6 +390,10 @@ def main():
         default=0,
     )
     args = parser.parse_args()
+
+    # Mark the environment as tracking mode so that any lazy import errors are
+    # disabled
+    enable_tracking_mode()
 
     # Set the level on the shared logger
     log_level = getattr(logging, args.log_level.upper(), None)
