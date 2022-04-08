@@ -469,6 +469,7 @@ def main():
                         module_name=internal_downstream,
                         log_level=log_level,
                         recursive=False,
+                        side_effect_modules=args.side_effect_modules,
                     )
                 )
 
@@ -487,6 +488,7 @@ def main():
                             module_name=internal_downstream,
                             log_level=log_level,
                             recursive=False,
+                            side_effect_modules=args.side_effect_modules,
                         )
                     )
                 # This is useful for catching errors caused by unexpected corner
