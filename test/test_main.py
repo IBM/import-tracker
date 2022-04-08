@@ -138,3 +138,33 @@ def test_lib_with_lazy_imports(capsys):
     assert captured.out
     parsed_out = json.loads(captured.out)
     assert "lazy_import_errors" in parsed_out
+
+
+def test_lib_with_side_effect_imports():
+    """Make sure that a library with import-time side effects works when
+    specifying the --side_effect_modules argument and fails without it
+    """
+
+    # Expect failure without the argument
+    with cli_args("--name", "side_effects.mod"):
+        with pytest.raises(AssertionError):
+            main()
+
+    # Expect success with the argument
+    with cli_args(
+        "--name",
+        "side_effects.mod",
+        "--side_effect_modules",
+        "side_effects.global_thing",
+    ):
+        main()
+
+    # Ensure that the argument is passed recursively
+    with cli_args(
+        "--name",
+        "side_effects",
+        "--side_effect_modules",
+        "side_effects.global_thing",
+        "--recursive",
+    ):
+        main()
