@@ -168,7 +168,7 @@ class _DeferredModule(ModuleType):
                         attr
                         for attr in vars(mod).values()
                         if isinstance(attr, ModuleType)
-                        and attr.__spec__.name.startswith(ref_module_pkg)
+                        and attr.__name__.startswith(ref_module_pkg)
                         and mod not in checked_modules
                     ]
                 )
