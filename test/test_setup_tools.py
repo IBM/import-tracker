@@ -111,3 +111,21 @@ def test_parse_requirements_unknown_extras():
         # Make sure the assertion is tripped
         with pytest.raises(AssertionError):
             parse_requirements(requirements_file.name, "sample_lib", ["foobar"])
+
+
+def test_parse_requirements_with_side_effects():
+    """Make sure that side_effect_modules can be passed through to allow for
+    successful parsing
+    """
+    with tempfile.NamedTemporaryFile("w") as requirements_file:
+        # Make a requirements file that looks normal
+        requirements_file.write("\n".join(sample_lib_requirements))
+        requirements_file.flush()
+
+        # Parse the reqs for "side_effects". We only care that this doesn't
+        # raise, so there's no validation of the results.
+        parse_requirements(
+            requirements_file=requirements_file.name,
+            library_name="side_effects",
+            side_effect_modules=["side_effects.global_thing"],
+        )

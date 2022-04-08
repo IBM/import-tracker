@@ -22,6 +22,7 @@ def parse_requirements(
     requirements_file: str,
     library_name: str,
     extras_modules: Optional[List[str]] = None,
+    **kwargs,
 ) -> Tuple[List[str], Dict[str, List[str]]]:
     """This helper uses the lists of required modules and parameters for the
     given library to produce requirements and the extras_require dict.
@@ -34,6 +35,8 @@ def parse_requirements(
         extras_modules:  Optional[List[str]]
             List of module names that should be used to generate extras_require
             sets
+        **kwargs:
+            Additional keyword arguments to pass through to track_module
 
     Returns:
         requirements:  List[str]
@@ -52,7 +55,7 @@ def parse_requirements(
     log.debug("Requirements: %s", requirements)
 
     # Get the set of required modules for each of the listed extras modules
-    library_import_mapping = track_module(library_name, recursive=True)
+    library_import_mapping = track_module(library_name, recursive=True, **kwargs)
 
     # If no extras_modules are given, track them all
     if not extras_modules:
