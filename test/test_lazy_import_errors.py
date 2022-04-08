@@ -152,7 +152,7 @@ def test_lazy_import_error_with_from():
         lambda: Baz(),
         lambda: Baz + 1,
         lambda: Baz * 2,
-        lambda: Baz ** 2,
+        lambda: Baz**2,
         lambda: Baz @ 2,
         lambda: Baz - 1,
         lambda: 1 - Baz,

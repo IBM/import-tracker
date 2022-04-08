@@ -26,6 +26,7 @@ def track_module(
     log_level: Optional[int] = None,
     recursive: bool = False,
     num_jobs: int = 0,
+    side_effect_modules: Optional[List[str]] = None,
 ) -> Dict[str, List[str]]:
     """This function executes the tracking of a single module by launching a
     subprocess to execute this module against the target module. The
@@ -45,6 +46,11 @@ def track_module(
             module
         num_jobs:  int
             The number of concurrent jobs to run when recursing
+        side_effect_modules:  Optional[List[str]]
+            Some libraries rely on certain import-time side effects in order to
+            perform required import tasks (e.g. global singleton registries).
+            These modules will be allowed to import regardless of where they
+            fall relative to the targeted module.
 
     Returns:
         import_mapping:  Dict[str, List[str]]
@@ -74,6 +80,8 @@ def track_module(
         cmd += f" --package {package_name}"
     if recursive:
         cmd += " --recursive"
+    if side_effect_modules:
+        cmd += " --side_effect_modules " + " ".join(side_effect_modules)
 
     # Launch the process
     proc = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, env=env)

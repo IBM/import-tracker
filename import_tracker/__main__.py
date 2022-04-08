@@ -17,7 +17,7 @@ python -m import_tracker --name .my_sub_module --package my_library
 # Standard
 from concurrent.futures import ThreadPoolExecutor
 from types import ModuleType
-from typing import Optional, Set
+from typing import List, Optional, Set
 import argparse
 import cmath
 import importlib
@@ -206,14 +206,22 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         used during the import phase of a library at runtime!
     """
 
-    def __init__(self, tracked_module: str):
+    def __init__(
+        self, tracked_module: str, side_effect_modules: Optional[List[str]] = None
+    ):
         """Initialize with the name of the package being tracked
 
         Args:
             tracked_module:  str
                 The name of the module (may be nested) being tracked
+            side_effect_modules:  Optional[List[str]]
+                Some libraries rely on certain import-time side effects in order
+                to perform required import tasks (e.g. global singleton
+                registries). These modules will be allowed to import regardless
+                of where they fall relative to the targeted module.
         """
         self._tracked_module = tracked_module
+        self._side_effect_modules = side_effect_modules or []
         self._tracked_module_parts = tracked_module.split(".")
         self._enabled = True
         self._starting_modules = set(sys.modules.keys())
@@ -241,6 +249,12 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
                 import is on the critical path, None will be returned to defer
                 to the rest of the "real" finders.
         """
+
+        # If this module fullname is one of the modules with known side-effects,
+        # let it fall through
+        if fullname in self._side_effect_modules:
+            log.debug("Allowing import of side-effect module [%s]", fullname)
+            return None
 
         # If this finder is enabled and the requested import is not the target,
         # defer it with a lazy module
@@ -389,6 +403,13 @@ def main():
         help="Number of workers to spawn when recursing",
         default=0,
     )
+    parser.add_argument(
+        "--side_effect_modules",
+        "-s",
+        nargs="*",
+        default=None,
+        help="Modules with known import-time side effect which should always be allowed to import",
+    )
     args = parser.parse_args()
 
     # Mark the environment as tracking mode so that any lazy import errors are
@@ -410,7 +431,7 @@ def main():
         full_module_name = f"{args.package}{args.name}"
 
     # Create the tracking meta finder
-    tracker_finder = ImportTrackerMetaFinder(full_module_name)
+    tracker_finder = ImportTrackerMetaFinder(full_module_name, args.side_effect_modules)
     sys.meta_path = [tracker_finder] + sys.meta_path
 
     # Do the import
@@ -448,6 +469,7 @@ def main():
                         module_name=internal_downstream,
                         log_level=log_level,
                         recursive=False,
+                        side_effect_modules=args.side_effect_modules,
                     )
                 )
 
@@ -466,6 +488,7 @@ def main():
                             module_name=internal_downstream,
                             log_level=log_level,
                             recursive=False,
+                            side_effect_modules=args.side_effect_modules,
                         )
                     )
                 # This is useful for catching errors caused by unexpected corner
