@@ -67,18 +67,6 @@ def _get_non_std_modules(mod_names: Set[str]) -> Set[str]:
     }
 
 
-def _get_module_name(mod: ModuleType) -> str:
-    """Helper to safely get the name of a module by looking at the various
-    places it can be found.
-    """
-    if hasattr(mod, "__name__"):
-        return mod.__name__
-    spec = getattr(mod, "__spec__", None)
-    if spec is not None:
-        return spec.name
-    raise ImportError(f"Unable to find a name for {mod}")
-
-
 class _DeferredModule(ModuleType):
     """A _DeferredModule is a module subclass that wraps another module but imports
     it lazily and then aliases __getattr__ to the lazily imported module.
@@ -180,7 +168,7 @@ class _DeferredModule(ModuleType):
                         attr
                         for attr in vars(mod).values()
                         if isinstance(attr, ModuleType)
-                        and _get_module_name(attr).startswith(ref_module_pkg)
+                        and attr.__name__.startswith(ref_module_pkg)
                         and mod not in checked_modules
                     ]
                 )
