@@ -168,3 +168,33 @@ def test_lib_with_side_effect_imports():
         "--recursive",
     ):
         main()
+
+
+def test_with_limited_submodules(capsys):
+    """Make sure that when a list of submodules is given, the recursion only
+    applies to those submodules.
+    """
+    with cli_args(
+        "--name",
+        "sample_lib",
+        "--recursive",
+        "--submodules",
+        "sample_lib.submod1",
+    ):
+        main()
+    captured = capsys.readouterr()
+    assert captured.out
+    parsed_out = json.loads(captured.out)
+    assert list(parsed_out.keys()) == ["sample_lib", "sample_lib.submod1"]
+
+
+def test_error_submodules_without_recursive():
+    """Make sure an error is raised when submodules given without recursive"""
+    with cli_args(
+        "--name",
+        "sample_lib",
+        "--submodules",
+        "sample_lib.submod1",
+    ):
+        with pytest.raises(ValueError):
+            main()
