@@ -397,6 +397,13 @@ def main():
         default=False,
     )
     parser.add_argument(
+        "--submodules",
+        "-u",
+        nargs="*",
+        default=None,
+        help="List of sub-modules to recurse on (only used when --recursive set)",
+    )
+    parser.add_argument(
         "--num_jobs",
         "-j",
         type=int,
@@ -411,6 +418,10 @@ def main():
         help="Modules with known import-time side effect which should always be allowed to import",
     )
     args = parser.parse_args()
+
+    # Validate sets of args
+    if args.submodules and not args.recursive:
+        raise ValueError("Ignoring --submodules without --recursive")
 
     # Mark the environment as tracking mode so that any lazy import errors are
     # disabled
@@ -458,11 +469,22 @@ def main():
             and downstream != full_module_name
         ]
 
+        # If a list of submodules was given, limit the recursion to only those
+        # internals found in that list
+        recursive_internals = all_internals
+        if args.submodules:
+            recursive_internals = [
+                downstream
+                for downstream in all_internals
+                if downstream in args.submodules
+            ]
+        log.debug("Recursing on: %s", recursive_internals)
+
         # Create the thread pool to manage the subprocesses
         if args.num_jobs > 0:
             pool = ThreadPoolExecutor(max_workers=args.num_jobs)
             futures = []
-            for internal_downstream in all_internals:
+            for internal_downstream in recursive_internals:
                 futures.append(
                     pool.submit(
                         track_module,
@@ -478,7 +500,7 @@ def main():
                 downstream_mapping.update(future.result())
 
         else:
-            for internal_downstream in all_internals:
+            for internal_downstream in recursive_internals:
                 try:
                     log.debug(
                         "Starting sub-module tracking for [%s]", internal_downstream

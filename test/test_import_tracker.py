@@ -79,3 +79,16 @@ def test_track_module_with_log_level():
         "sample_lib.submod1", log_level="error"
     )
     assert sample_lib_mapping == {"sample_lib.submod1": ["conditional_deps"]}
+
+
+def test_track_module_with_limited_submodules():
+    """Test that the submodules arg can be passed through"""
+    sample_lib_mapping = import_tracker.track_module(
+        "sample_lib",
+        recursive=True,
+        submodules=["sample_lib.submod1"],
+    )
+    assert sample_lib_mapping == {
+        "sample_lib": sorted(["conditional_deps", "alog", "yaml"]),
+        "sample_lib.submod1": ["conditional_deps"],
+    }
