@@ -54,6 +54,11 @@ def parse_requirements(
         }
     log.debug("Requirements: %s", requirements)
 
+    # If extras_modules are given, use them as the submodules list
+    if extras_modules:
+        log.debug2("Only recursing on extras modules: %s", extras_modules)
+        kwargs["submodules"] = extras_modules
+
     # Get the set of required modules for each of the listed extras modules
     library_import_mapping = track_module(library_name, recursive=True, **kwargs)
 
