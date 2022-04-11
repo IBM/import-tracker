@@ -17,10 +17,11 @@ python -m import_tracker --name .my_sub_module --package my_library
 # Standard
 from concurrent.futures import ThreadPoolExecutor
 from types import ModuleType
-from typing import List, Optional, Set
+from typing import Dict, List, Optional, Set, Union
 import argparse
 import cmath
 import importlib
+import inspect
 import json
 import logging
 import os
@@ -54,9 +55,10 @@ def _get_import_parent_path(mod) -> str:
     return parent_path
 
 
-def _get_non_std_modules(mod_names: Set[str]) -> Set[str]:
+def _get_non_std_modules(mod_names: Union[Set[str], Dict[str, List[dict]]]) -> Set[str]:
     """Take a snapshot of the non-standard modules currently imported"""
-    return {
+    # Determine the names from the list that are non-standard
+    non_std_mods = {
         mod_name.split(".")[0]
         for mod_name, mod in sys.modules.items()
         if mod_name in mod_names
@@ -64,6 +66,17 @@ def _get_non_std_modules(mod_names: Set[str]) -> Set[str]:
         and "." not in mod_name
         and _get_import_parent_path(mod) not in [_std_lib_dir, _std_dylib_dir]
         and mod_name.split(".")[0] != THIS_PACKAGE
+    }
+
+    # If this is a set, just return it directly
+    if isinstance(mod_names, set):
+        return non_std_mods
+
+    # If it's a dict, limit to the non standard names
+    return {
+        mod_name: mod_vals
+        for mod_name, mod_vals in mod_names.items()
+        if mod_name in non_std_mods
     }
 
 
@@ -197,17 +210,16 @@ class _LazyLoader(importlib.abc.Loader):
 class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
     """The ImportTrackerMetaFinder is a meta finder that is intended to be used
     at the front of the sys.meta_path to automatically track the imports for a
-    given library. It does this by looking at the call stack when a given import
-    is requested and tracking the upstream for each import made inside of the
-    target package.
-
-    NOTE: Since a stack trace is traversed on every import, this is very slow
-        and is intended only for a static build-time operation and should not be
-        used during the import phase of a library at runtime!
+    given library. It does this by deferring all imports which occur before the
+    target module has been seen, then collecting all imports seen until the
+    target import has completed.
     """
 
     def __init__(
-        self, tracked_module: str, side_effect_modules: Optional[List[str]] = None
+        self,
+        tracked_module: str,
+        side_effect_modules: Optional[List[str]] = None,
+        track_import_stack: bool = False,
     ):
         """Initialize with the name of the package being tracked
 
@@ -219,6 +231,12 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
                 to perform required import tasks (e.g. global singleton
                 registries). These modules will be allowed to import regardless
                 of where they fall relative to the targeted module.
+            track_import_stack:  bool
+                If true, when imports are allowed through, their stack trace is
+                captured.
+                NOTE: This will cause a stack trace to be computed for every
+                    import in the tracked set, so it will be very slow and
+                    should only be used as a debugging tool on targeted imports.
         """
         self._tracked_module = tracked_module
         self._side_effect_modules = side_effect_modules or []
@@ -228,9 +246,14 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         log.debug2("Starting modules: %s", self._starting_modules)
         self._ending_modules = None
         self._deferred_modules = set()
+        self._track_import_stack = track_import_stack
+        self._import_stacks = {}
 
     def find_spec(
-        self, fullname: str, *args, **kwargs
+        self,
+        fullname: str,
+        *args,
+        **kwargs,
     ) -> Optional[importlib.machinery.ModuleSpec]:
         """The find_spec implementation for this finder tracks the source of the
         import call for the given module and determines if it is on the critical
@@ -248,6 +271,48 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
                 module, a spec with a _DeferredLoader will be returned. If the
                 import is on the critical path, None will be returned to defer
                 to the rest of the "real" finders.
+        """
+        # Do the main tracking logic
+        result = self._find_spec(fullname, *args, **kwargs)
+
+        # If this module is part of the set of modules belonging to the tracked
+        # module and stack tracing is enabled, grab all frames in the stack that
+        # come from the tracked module's package.
+        if (
+            self._track_import_stack
+            and result is None
+            and fullname != self._tracked_module
+            and self._ending_modules is None
+        ):
+            stack = inspect.stack()
+            stack_info = []
+            for frame in stack:
+                frame_module_name = frame.frame.f_globals["__name__"].split(".")[0]
+                if frame_module_name == self._tracked_module_parts[0]:
+                    stack_info.append(
+                        {
+                            "filename": frame.filename,
+                            "lineno": frame.lineno,
+                            "code_context": [
+                                line.strip("\n") for line in frame.code_context
+                            ],
+                        }
+                    )
+
+            assert (
+                fullname not in self._import_stacks
+            ), f"Hit double-import of [{fullname}]!"
+            self._import_stacks[fullname] = stack_info
+
+        # Return the result of the core logic untouched
+        return result
+
+    def _find_spec(
+        self, fullname: str, *args, **kwargs
+    ) -> Optional[importlib.machinery.ModuleSpec]:
+        """This implements the core logic of find_spec. It is wrapped by the
+        public find_spec so that when an import is allowed, the stack can be
+        optionally tracked.
         """
 
         # If this module fullname is one of the modules with known side-effects,
@@ -309,11 +374,17 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         assert self._starting_modules is not None, f"Target module never impoted!"
         if self._ending_modules is None:
             self._set_ending_modules()
-        return {
+        mod_names = {
             mod
             for mod in self._ending_modules - self._starting_modules
             if not self._is_parent_module(mod)
         }
+        if self._track_import_stack:
+            return {
+                mod_name: self._import_stacks.get(mod_name, [])
+                for mod_name in mod_names
+            }
+        return mod_names
 
     ## Implementation Details ##
 
@@ -417,6 +488,13 @@ def main():
         default=None,
         help="Modules with known import-time side effect which should always be allowed to import",
     )
+    parser.add_argument(
+        "--track_import_stack",
+        "-t",
+        action="store_true",
+        default=False,
+        help="Store the stack trace of imports belonging to the tracked module",
+    )
     args = parser.parse_args()
 
     # Validate sets of args
@@ -442,7 +520,11 @@ def main():
         full_module_name = f"{args.package}{args.name}"
 
     # Create the tracking meta finder
-    tracker_finder = ImportTrackerMetaFinder(full_module_name, args.side_effect_modules)
+    tracker_finder = ImportTrackerMetaFinder(
+        tracked_module=full_module_name,
+        side_effect_modules=args.side_effect_modules,
+        track_import_stack=args.track_import_stack,
+    )
     sys.meta_path = [tracker_finder] + sys.meta_path
 
     # Do the import
@@ -480,6 +562,14 @@ def main():
             ]
         log.debug("Recursing on: %s", recursive_internals)
 
+        # Set up the kwargs for recursing
+        recursive_kwargs = dict(
+            log_level=log_level,
+            recursive=False,
+            side_effect_modules=args.side_effect_modules,
+            track_import_stack=args.track_import_stack,
+        )
+
         # Create the thread pool to manage the subprocesses
         if args.num_jobs > 0:
             pool = ThreadPoolExecutor(max_workers=args.num_jobs)
@@ -489,9 +579,7 @@ def main():
                     pool.submit(
                         track_module,
                         module_name=internal_downstream,
-                        log_level=log_level,
-                        recursive=False,
-                        side_effect_modules=args.side_effect_modules,
+                        **recursive_kwargs,
                     )
                 )
 
@@ -507,12 +595,10 @@ def main():
                     )
                     downstream_mapping.update(
                         track_module(
-                            module_name=internal_downstream,
-                            log_level=log_level,
-                            recursive=False,
-                            side_effect_modules=args.side_effect_modules,
+                            module_name=internal_downstream, **recursive_kwargs
                         )
                     )
+
                 # This is useful for catching errors caused by unexpected corner
                 # cases. If it's triggered, it's a sign of a bug in the library,
                 # so we don't have ways to explicitly exercise this in tests.
@@ -527,13 +613,19 @@ def main():
     # Get all of the downstreams for the module in question, including internals
     log.debug("Downstream Mapping: %s", downstream_mapping)
 
+    # Set up the output dict depending on whether or not the stack info is being
+    # tracked
+    if args.track_import_stack:
+        output_dict = {
+            key: dict(sorted(val.items())) for key, val in downstream_mapping.items()
+        }
+    else:
+        output_dict = {
+            key: sorted(list(val)) for key, val in downstream_mapping.items()
+        }
+
     # Print out the json dump
-    print(
-        json.dumps(
-            {key: sorted(list(val)) for key, val in downstream_mapping.items()},
-            indent=args.indent,
-        ),
-    )
+    print(json.dumps(output_dict, indent=args.indent))
 
 
 if __name__ == "__main__":
