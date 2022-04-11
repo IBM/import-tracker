@@ -275,12 +275,20 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         # Do the main tracking logic
         result = self._find_spec(fullname, *args, **kwargs)
 
+        # If this module is deferred, return it
+        if result is not None:
+            log.debug2("Returning deferred module for [%s]", fullname)
+
         # If this module is part of the set of modules belonging to the tracked
         # module and stack tracing is enabled, grab all frames in the stack that
         # come from the tracked module's package.
+        log.debug2(
+            "Stack tracking? %s, Ending modules set? %s",
+            self._track_import_stack,
+            self._ending_modules is not None,
+        )
         if (
             self._track_import_stack
-            and result is None
             and fullname != self._tracked_module
             and self._ending_modules is None
         ):
@@ -302,10 +310,11 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
             assert (
                 fullname not in self._import_stacks
             ), f"Hit double-import of [{fullname}]!"
+            log.debug2("Found %d stack frames for [%s]", len(stack_info), fullname)
             self._import_stacks[fullname] = stack_info
 
-        # Return the result of the core logic untouched
-        return result
+        # Let the module pass through
+        return None
 
     def _find_spec(
         self, fullname: str, *args, **kwargs
