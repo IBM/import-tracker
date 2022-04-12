@@ -6,6 +6,7 @@ Tests for the main entrypoint
 from contextlib import contextmanager
 import json
 import logging
+import os
 import sys
 
 # Third Party
@@ -225,15 +226,22 @@ def test_import_stack_tracking(capsys):
     }
 
     # Check one of the stacks to make sure it's correct
+    test_lib_dir = os.path.realpath(
+        os.path.join(
+            os.path.dirname(__file__),
+            "sample_libs",
+            "inter_mod_deps",
+        )
+    )
     assert parsed_out["inter_mod_deps.submod2"] == {
         "alog": [
             {
-                "filename": "/Users/ghart/Projects/github/IBM/import-tracker/test/sample_libs/inter_mod_deps/submod1/__init__.py",
+                "filename": f"{test_lib_dir}/submod1/__init__.py",
                 "lineno": 6,
                 "code_context": ["import alog"],
             },
             {
-                "filename": "/Users/ghart/Projects/github/IBM/import-tracker/test/sample_libs/inter_mod_deps/__init__.py",
+                "filename": f"{test_lib_dir}/__init__.py",
                 "lineno": 17,
                 "code_context": [
                     "from . import submod1, submod2, submod3, submod4, submod5"
@@ -242,12 +250,12 @@ def test_import_stack_tracking(capsys):
         ],
         "yaml": [
             {
-                "filename": "/Users/ghart/Projects/github/IBM/import-tracker/test/sample_libs/inter_mod_deps/submod2/__init__.py",
+                "filename": f"{test_lib_dir}/submod2/__init__.py",
                 "lineno": 6,
                 "code_context": ["import yaml"],
             },
             {
-                "filename": "/Users/ghart/Projects/github/IBM/import-tracker/test/sample_libs/inter_mod_deps/__init__.py",
+                "filename": f"{test_lib_dir}/__init__.py",
                 "lineno": 17,
                 "code_context": [
                     "from . import submod1, submod2, submod3, submod4, submod5"
