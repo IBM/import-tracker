@@ -239,6 +239,11 @@ def test_import_stack_tracking(capsys):
                     "from . import submod1, submod2, submod3, submod4, submod5"
                 ],
             },
+            {
+                "filename": "/Users/ghart/Projects/github/IBM/import-tracker/test/sample_libs/inter_mod_deps/submod2/__init__.py",
+                "lineno": 9,
+                "code_context": ["from .. import submod1"],
+            },
         ],
         "yaml": [
             {

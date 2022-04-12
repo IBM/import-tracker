@@ -80,6 +80,43 @@ def _get_non_std_modules(mod_names: Union[Set[str], Dict[str, List[dict]]]) -> S
     }
 
 
+def _get_import_line_stack_frame(parent_mod, child_mod_name):
+    """In the case when an import is attributed to a module by finalizing a
+    deferred module pulled as an attribute from a deferred sibling module, the
+    normal method of capturing the stack trace won't actually capture the
+    frame where the attribute from the sibling is accessed because technically
+    the import has already succeeded. In order to still provide the telemetry
+    needed to find where the import isactually linked to the target, we can
+    approximate the the frame in question by doing some constrained source code
+    parsing!
+    """
+    res = {"filename": parent_mod.__file__, "lineno": None, "code_context": None}
+
+    # Safely try to get the source code
+    parent_mod_source = getattr(
+        getattr(parent_mod, "__loader__", None),
+        "get_source",
+        lambda _: None,
+    )(parent_mod.__name__)
+
+    # Try to pull the rest of the context from the raw source of the module
+    if parent_mod_source is not None:
+        lines = parent_mod_source.split("\n")
+        log.debug4("Parent Module Source Code: %s", parent_mod_source)
+        log.debug4("Looking for [%s] and 'import'", child_mod_name)
+
+        import_lines = [
+            (i + 1, line)
+            for i, line in enumerate(lines)
+            if child_mod_name in line and "import" in line
+        ]
+        if import_lines:
+            res["lineno"] = import_lines[0][0]
+            res["code_context"] = [import_lines[0][1]]
+
+    return res
+
+
 class _DeferredModule(ModuleType):
     """A _DeferredModule is a module subclass that wraps another module but imports
     it lazily and then aliases __getattr__ to the lazily imported module.
@@ -283,11 +320,6 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         # If this module is part of the set of modules belonging to the tracked
         # module and stack tracing is enabled, grab all frames in the stack that
         # come from the tracked module's package.
-        log.debug2(
-            "Stack tracking? %s, Ending modules set? %s",
-            self._track_import_stack,
-            self._ending_modules is not None,
-        )
         if (
             self._track_import_stack
             and fullname != self._tracked_module
@@ -418,25 +450,60 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         # imports a sibling's attribute which was previously imported and
         # deferred
         deferred_attrs = []
+        pre_import_modules = set(sys.modules.keys())
+        updated_import_mapping = {}
+        finalized_mod_mapping = {}
         while True:
             for mod_name, mod in list(sys.modules.items()):
-                if mod_name.startswith(self._tracked_module.split(".")[0]):
+                if mod_name.startswith(self._tracked_module_parts[0]):
                     for attr_name, attr in vars(mod).items():
                         if (
                             isinstance(attr, _DeferredModule)
                             and not attr.imported
                             and attr.referenced_by(self._tracked_module)
                         ):
-                            deferred_attrs.append((mod_name, attr_name, attr))
+                            deferred_attrs.append((mod_name, mod, attr_name, attr))
             if not deferred_attrs:
                 break
-            for mod_name, attr_name, attr in deferred_attrs:
-                log.debug2("Finalizing deferred import for %s.%s", mod_name, attr_name)
+            for mod_name, mod, attr_name, attr in deferred_attrs:
+                log.debug2(
+                    "Finalizing deferred import for %s.%s [%s]",
+                    mod_name,
+                    attr_name,
+                    attr.__name__,
+                )
+                finalized_mod_mapping.setdefault(mod_name, set()).add(attr.__name__)
                 attr.do_import()
                 log.debug2(
                     "Done finalizing deferred import for %s.%s", mod_name, attr_name
                 )
+                updated_modules = set(sys.modules.keys())
+                current_updates = updated_import_mapping.get(attr.__name__, set())
+                new_modules = current_updates.union(
+                    updated_modules - pre_import_modules
+                )
+                updated_import_mapping[attr.__name__] = new_modules
+                pre_import_modules = updated_modules
+                log.debug3(
+                    "New modules after finalizing %s: %s", attr.__name__, new_modules
+                )
+
             deferred_attrs = []
+
+        # If import stack tracing is enabled, we need to suppliment the
+        # stack with information about the place where the deferred
+        # module was held as an attribute
+        if self._track_import_stack:
+            for parent_mod_name, finalized_mods in finalized_mod_mapping.items():
+                if parent_mod_name.startswith(self._tracked_module):
+                    for finalized_mod in finalized_mods:
+                        attr_stack_frame = _get_import_line_stack_frame(
+                            sys.modules[parent_mod_name], finalized_mod.split(".")[-1]
+                        )
+                        for new_import_mod in updated_import_mapping[finalized_mod]:
+                            self._import_stacks.setdefault(new_import_mod, []).append(
+                                attr_stack_frame
+                            )
 
         # Capture the set of imports in sys.modules (excluding the module that
         # triggered this)
