@@ -278,6 +278,7 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         # If this module is deferred, return it
         if result is not None:
             log.debug2("Returning deferred module for [%s]", fullname)
+            return result
 
         # If this module is part of the set of modules belonging to the tracked
         # module and stack tracing is enabled, grab all frames in the stack that
@@ -290,7 +291,7 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         if (
             self._track_import_stack
             and fullname != self._tracked_module
-            and self._ending_modules is None
+            and not self._enabled
         ):
             stack = inspect.stack()
             stack_info = []
@@ -307,9 +308,10 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
                         }
                     )
 
-            assert (
-                fullname not in self._import_stacks
-            ), f"Hit double-import of [{fullname}]!"
+            # NOTE: Under certain _strange_ cases, you can end up overwriting a
+            #   previous import stack here. I've only ever seen this happen with
+            #   pytest internals. Also, in this case the best we can do is just
+            #   keep the latest one.
             log.debug2("Found %d stack frames for [%s]", len(stack_info), fullname)
             self._import_stacks[fullname] = stack_info
 
