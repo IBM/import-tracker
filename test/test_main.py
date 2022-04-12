@@ -6,6 +6,7 @@ Tests for the main entrypoint
 from contextlib import contextmanager
 import json
 import logging
+import os
 import sys
 
 # Third Party
@@ -198,3 +199,67 @@ def test_error_submodules_without_recursive():
     ):
         with pytest.raises(ValueError):
             main()
+
+
+def test_import_stack_tracking(capsys):
+    """Make sure that tracking the import stack works as expected"""
+    with cli_args(
+        "--name",
+        "inter_mod_deps",
+        "--recursive",
+        "--track_import_stack",
+    ):
+        main()
+    captured = capsys.readouterr()
+    assert captured.out
+    parsed_out = json.loads(captured.out)
+
+    assert set(parsed_out.keys()) == {
+        "inter_mod_deps",
+        "inter_mod_deps.submod1",
+        "inter_mod_deps.submod2",
+        "inter_mod_deps.submod2.foo",
+        "inter_mod_deps.submod2.bar",
+        "inter_mod_deps.submod3",
+        "inter_mod_deps.submod4",
+        "inter_mod_deps.submod5",
+    }
+
+    # Check one of the stacks to make sure it's correct
+    test_lib_dir = os.path.realpath(
+        os.path.join(
+            os.path.dirname(__file__),
+            "sample_libs",
+            "inter_mod_deps",
+        )
+    )
+    assert parsed_out["inter_mod_deps.submod2"] == {
+        "alog": [
+            {
+                "filename": f"{test_lib_dir}/submod1/__init__.py",
+                "lineno": 6,
+                "code_context": ["import alog"],
+            },
+            {
+                "filename": f"{test_lib_dir}/__init__.py",
+                "lineno": 17,
+                "code_context": [
+                    "from . import submod1, submod2, submod3, submod4, submod5"
+                ],
+            },
+        ],
+        "yaml": [
+            {
+                "filename": f"{test_lib_dir}/submod2/__init__.py",
+                "lineno": 6,
+                "code_context": ["import yaml"],
+            },
+            {
+                "filename": f"{test_lib_dir}/__init__.py",
+                "lineno": 17,
+                "code_context": [
+                    "from . import submod1, submod2, submod3, submod4, submod5"
+                ],
+            },
+        ],
+    }

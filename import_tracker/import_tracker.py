@@ -28,6 +28,7 @@ def track_module(
     num_jobs: int = 0,
     side_effect_modules: Optional[List[str]] = None,
     submodules: Optional[List[str]] = None,
+    track_import_stack: bool = False,
 ) -> Dict[str, List[str]]:
     """This function executes the tracking of a single module by launching a
     subprocess to execute this module against the target module. The
@@ -54,6 +55,8 @@ def track_module(
             fall relative to the targeted module.
         submodules:  Optional[List[str]]
             List of sub-modules to recurse on (only used when recursive set)
+        track_import_stack:  bool
+            Store the stack trace of imports belonging to the tracked module
 
     Returns:
         import_mapping:  Dict[str, List[str]]
@@ -87,6 +90,8 @@ def track_module(
         cmd += " --side_effect_modules " + " ".join(side_effect_modules)
     if submodules:
         cmd += " --submodules " + " ".join(submodules)
+    if track_import_stack:
+        cmd += " --track_import_stack"
 
     # Launch the process
     proc = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, env=env)
