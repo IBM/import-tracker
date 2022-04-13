@@ -318,3 +318,20 @@ def test_lazy_import_error_infinite_attrs():
         from foo.bar import Baz
 
         assert Baz.bat is Baz
+
+
+def test_lazy_import_error_custom_error_msg():
+    """Make sure that the lazy_import_errors context manager can be configured
+    with a custom function for creating the error message.
+    """
+    custom_error_message = "This is a custom message!"
+
+    def make_error_msg(*_, **__):
+        return custom_error_message
+
+    with import_tracker.lazy_import_errors(make_error_msg):
+        # Third Party
+        from foo.bar import Baz
+
+    with pytest.raises(ModuleNotFoundError, match=custom_error_message):
+        Baz()
