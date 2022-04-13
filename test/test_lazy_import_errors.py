@@ -318,3 +318,55 @@ def test_lazy_import_error_infinite_attrs():
         from foo.bar import Baz
 
         assert Baz.bat is Baz
+
+
+def test_lazy_import_error_custom_error_msg():
+    """Make sure that the lazy_import_errors context manager can be configured
+    with a custom function for creating the error message.
+    """
+    custom_error_message = "This is a custom message!"
+
+    def make_error_msg(*_, **__):
+        return custom_error_message
+
+    with import_tracker.lazy_import_errors(make_error_message=make_error_msg):
+        # Third Party
+        from foo.bar import Baz
+
+    with pytest.raises(ModuleNotFoundError, match=custom_error_message):
+        Baz()
+
+
+def test_lazy_import_error_get_extras_modules():
+    """Make sure that the lazy_import_errors context manager can be configured
+    with a get_extras_modules function and perform the custom error message
+    creation internally.
+    """
+    # Third Party
+    import missing_dep
+
+    # Using foobar inside missing_dep.mod should catch the custom error
+    with pytest.raises(
+        ModuleNotFoundError,
+        match=r".*pip install missing_dep\[missing_dep.mod\].*",
+    ):
+        missing_dep.mod.use_foobar()
+
+    # Using bazbat inside missing_dep.other should have the standard error since
+    # missing_dep.other is not tracked as an extra
+    with pytest.raises(
+        ModuleNotFoundError,
+        match="No module named 'bazbat'",
+    ):
+        missing_dep.other.use_bazbat()
+
+
+def test_lazy_import_error_mutually_exclusive_args():
+    """Make sure the args to lazy_import_errors are mutually exclusive"""
+    with pytest.raises(TypeError):
+        with import_tracker.lazy_import_errors(
+            make_error_message=1,
+            get_extras_modules=2,
+        ):
+            # Third Party
+            import foobar

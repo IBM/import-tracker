@@ -70,6 +70,12 @@ with lazy_import_errors():
     from . import widgets
 ```
 
+When using lazy import errors, there are two ways to customize the error message that is raised when a failed import is used:
+
+1.  1. The `get_extras_modules` argument takes a function which returns a `Set[str]` of the module names that are tracked as extras. If the import error is triggered within a module that is managed as an extras set, the error message is updated to include instructions on which extras set needs to be installed.
+
+2.  The `make_error_message` argument allows the caller to specify a fully custom error message generation function.
+
 ### Using `setup_tools.parse_requirements`
 
 To take advantage of the automatic dependency parsing when building a package, the `setup.py` would look like the following:

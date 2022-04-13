@@ -6,7 +6,9 @@ used.
 
 # Standard
 from contextlib import AbstractContextManager
+from functools import partial
 from types import ModuleType
+from typing import Callable, Optional, Set
 import importlib.abc
 import importlib.util
 import inspect
@@ -15,7 +17,11 @@ import sys
 ## Public ######################################################################
 
 
-def lazy_import_errors():
+def lazy_import_errors(
+    *,
+    get_extras_modules: Optional[Callable[[], Set[str]]] = None,
+    make_error_message: Optional[Callable[[str], str]] = None,
+):
     """Enable lazy import errors.
 
     When enabled, lazy import errors will capture imports that would otherwise
@@ -26,8 +32,27 @@ def lazy_import_errors():
 
     This function may be used either as a function directly or as a
     contextmanager which will disable lazy errors upon exit.
+
+    Args:
+        get_extras_modules:  Optional[Callable[[], Set[str]]]
+            Optional callable that fetches the list of module names in the
+            calling library that are managed as extras using
+            setup_tools.parse_requirements. (Mutually exclusive
+            with make_error_message)
+        make_error_message:  Optional[Callable[[str], str]]
+            Optional callable that takes the name of the module which faild to
+            import and returns an error message string to be used for the
+            ModuleNotFoundError. (Mutually exclusive with get_extras_modules)
     """
-    return _LazyImportErrorCtx()
+    if get_extras_modules is not None and make_error_message is not None:
+        raise TypeError(
+            "Cannot specify both 'get_extras_modules' and 'make_error_message'"
+        )
+
+    if get_extras_modules is not None:
+        make_error_message = partial(_make_extras_import_error, get_extras_modules)
+
+    return _LazyImportErrorCtx(make_error_message)
 
 
 ## Implementation Details ######################################################
@@ -45,10 +70,57 @@ def enable_tracking_mode():
     _TRACKING_MODE = True
 
 
+def _make_extras_import_error(
+    get_extras_modules: Callable[[], Set[str]],
+    missing_module_name: str,
+) -> Optional[str]:
+    """This function implements the most common implementation of a custom error
+    message where the calling library has some mechanism for determining which
+    modules are managed as extras and wants the error messages to include the
+    `pip install` command needed to add the missing dependencies.
+
+    NOTE: There is an assumption here that the name of the root module is the
+        name of the pip package. If this is NOT true (e.g. alchemy-logging vs
+        alog), the module will need to implement its own custom
+        make_error_message.
+
+    Args:
+        get_extras_modules:  Callable[[] Set[str]]
+            The function bound in from the caller that yields the set of extras
+            modules for the library
+        missing_module_name:  str
+            The name of the module that failed to import
+
+    Returns:
+        error_msg:  Optional[str]
+            If the current stack includes an extras module, the formatted string
+            will be returned, otherwise None will be returned to allow the base
+            error message to be used.
+    """
+    # Get the set of extras modules from the library
+    extras_modules = get_extras_modules()
+
+    # Look through frames in the stack to see if there's an extras module
+    extras_module = None
+    for frame in inspect.stack():
+        frame_module = frame.frame.f_globals["__name__"]
+        if frame_module in extras_modules:
+            extras_module = frame_module
+            break
+
+    # If an extras module was found, return the formatted message
+    if extras_module is not None:
+        base_module = extras_module.partition(".")[0]
+        return (
+            f"No module named '{missing_module_name}'. To install the "
+            + f"missing dependencies, run `pip install {base_module}[{extras_module}]`"
+        )
+
+
 class _LazyImportErrorCtx(AbstractContextManager):
     """This class implements the Context Manager version of lazy_import_errors"""
 
-    def __init__(self):
+    def __init__(self, make_error_message: Optional[Callable[[str], str]]):
         """This class is always constructed inside of lazy_import_errors which
         acts as the context manager, so the __enter__ implementation lives in
         the constructor.
@@ -58,7 +130,7 @@ class _LazyImportErrorCtx(AbstractContextManager):
             and sys.meta_path
             and not isinstance(sys.meta_path[-1], _LazyErrorMetaFinder)
         ):
-            sys.meta_path.append(_LazyErrorMetaFinder())
+            sys.meta_path.append(_LazyErrorMetaFinder(make_error_message))
 
     @staticmethod
     def __enter__():
@@ -84,7 +156,13 @@ class _LazyErrorAttr(type):
         is raised rather than an opaque error about NEWOBJ not being a type.
     """
 
-    def __new__(cls, missing_module_name: str, bases=None, namespace=None):
+    def __new__(
+        cls,
+        missing_module_name: str,
+        bases=None,
+        namespace=None,
+        **__,
+    ):
         # When this is used as a base class, we need to pass __classcell__
         # through to type.__new__ to avoid a runtime warning.
         new_namespace = {}
@@ -94,11 +172,22 @@ class _LazyErrorAttr(type):
             cls, f"_LazyErrorAttr[{missing_module_name}]", (), new_namespace
         )
 
-    def __init__(self, missing_module_name: str, *_, **__):
+    def __init__(
+        self,
+        missing_module_name: str,
+        *_,
+        make_error_message: Optional[Callable[[str], str]] = None,
+        **__,
+    ):
         """Store the name of the attribute being accessed and the missing module"""
 
         def _raise(*_, **__):
-            raise ModuleNotFoundError(f"No module named '{missing_module_name}'")
+            msg = None
+            if make_error_message is not None:
+                msg = make_error_message(missing_module_name)
+            if msg is None:
+                msg = f"No module named '{missing_module_name}'"
+            raise ModuleNotFoundError(msg)
 
         self._raise = _raise
 
@@ -333,15 +422,18 @@ class _LazyErrorModule(ModuleType):
     be found so that import errors are deferred until attribute access.
     """
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, make_error_message: Optional[Callable[[str], str]]):
         super().__init__(name)
         self.__path__ = None
+        self._make_error_message = make_error_message
 
     def __getattr__(self, name: str) -> _LazyErrorAttr:
         # For special module attrs, return as if a stub module
         if name in ["__file__", "__module__", "__doc__", "__cached__"]:
             return None
-        return _LazyErrorAttr(self.__name__)
+        return _LazyErrorAttr(
+            self.__name__, make_error_message=self._make_error_message
+        )
 
 
 class _LazyErrorLoader(importlib.abc.Loader):
@@ -350,8 +442,11 @@ class _LazyErrorLoader(importlib.abc.Loader):
     at import time.
     """
 
+    def __init__(self, make_error_message: Optional[Callable[[str], str]]):
+        self._make_error_message = make_error_message
+
     def create_module(self, spec):
-        return _LazyErrorModule(spec.name)
+        return _LazyErrorModule(spec.name, self._make_error_message)
 
     def exec_module(self, *_, **__):
         """Nothing to do here because the errors will be thrown by the module
@@ -364,7 +459,8 @@ class _LazyErrorMetaFinder(importlib.abc.MetaPathFinder):
     potentially raise an ImportError when the module is used
     """
 
-    def __init__(self):
+    def __init__(self, make_error_message: Optional[Callable[[str], str]]):
+        self._make_error_message = make_error_message
         self.calling_pkg = None
         self.this_module = sys.modules[__name__].__package__.split(".")[0]
         non_importlib_mods = self._get_non_import_modules()
@@ -403,7 +499,7 @@ class _LazyErrorMetaFinder(importlib.abc.MetaPathFinder):
 
         # Set up a lazy loader that wraps the Loader that defers the error to
         # exec_module time
-        loader = _LazyErrorLoader()
+        loader = _LazyErrorLoader(self._make_error_message)
 
         # Create a spec from this loader so that it acts at import-time like it
         # loaded correctly
