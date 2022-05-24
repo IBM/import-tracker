@@ -370,3 +370,10 @@ def test_lazy_import_error_mutually_exclusive_args():
         ):
             # Third Party
             import foobar
+
+
+def test_frame_generator_stop():
+    """For completeness, we need to ensure that the FrameGenerator will stop
+    correctly if iterated to the end
+    """
+    list(_LazyErrorMetaFinder._FrameGenerator())
