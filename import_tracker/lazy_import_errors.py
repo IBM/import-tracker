@@ -463,8 +463,7 @@ class _LazyErrorMetaFinder(importlib.abc.MetaPathFinder):
         self._make_error_message = make_error_message
         self.calling_pkg = None
         self.this_module = sys.modules[__name__].__package__.split(".")[0]
-        non_importlib_mods = self._get_non_import_modules()
-        for pkgname in non_importlib_mods:
+        for pkgname in self._get_non_import_modules():
             # If this is the first non-initial hit that does match this module
             # then the previous module is the one calling import_module
             if self.calling_pkg is None and pkgname not in [
@@ -472,6 +471,7 @@ class _LazyErrorMetaFinder(importlib.abc.MetaPathFinder):
                 "contextlib",
             ]:
                 self.calling_pkg = pkgname
+                break
         assert self.calling_pkg is not None
 
     def find_spec(self, fullname, path, *args, **kwargs):
@@ -506,15 +506,33 @@ class _LazyErrorMetaFinder(importlib.abc.MetaPathFinder):
         return importlib.util.spec_from_loader(fullname, loader)
 
     ## Implementation Details ######################################################
-    @staticmethod
-    def _get_non_import_modules():
+
+    # Custom iterable that uses the low-level sys._getframe to get frames
+    # one-at-a-time
+    class _FrameGenerator:
+        def __init__(self):
+            self._depth = -1
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            self._depth += 1
+            try:
+                return sys._getframe(self._depth)
+            except ValueError:
+                self._depth = -1
+                raise StopIteration
+
+    @classmethod
+    def _get_non_import_modules(cls):
+
         # Figure out the module that is doing the import and the module that is
         # calling import_module
-        stack = inspect.stack()
-        non_importlib_mods = list(
-            filter(
-                lambda x: x != "importlib",
-                [frame.frame.f_globals["__name__"].split(".")[0] for frame in stack],
-            )
+        return filter(
+            lambda x: x != "importlib",
+            (
+                frame.f_globals["__name__"].split(".")[0]
+                for frame in cls._FrameGenerator()
+            ),
         )
-        return non_importlib_mods
