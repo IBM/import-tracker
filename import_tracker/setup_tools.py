@@ -5,7 +5,7 @@ extras_require sets in a setup.py
 
 # Standard
 from functools import reduce
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 import os
 import re
 import sys
@@ -19,7 +19,7 @@ from .log import log
 
 
 def parse_requirements(
-    requirements_file: str,
+    requirements: Union[List[str], str],
     library_name: str,
     extras_modules: Optional[List[str]] = None,
     **kwargs,
@@ -28,8 +28,9 @@ def parse_requirements(
     given library to produce requirements and the extras_require dict.
 
     Args:
-        requirements_file:  str
-            Path to the requirements file for this library
+        requirements:  Union[List[str], str]
+            The list of requirements entries, or a file path pointing to a
+            requirements file
         library_name:  str
             The top-level name of the library package
         extras_modules:  Optional[List[str]]
@@ -46,12 +47,20 @@ def parse_requirements(
     """
 
     # Load all requirements from the requirements file
-    with open(requirements_file, "r") as handle:
-        requirements = {
-            _standardize_package_name(_REQ_SPLIT_EXPR.split(line, 1)[0]): line.strip()
-            for line in handle.readlines()
-            if line.strip() and not line.startswith("#")
-        }
+    if isinstance(requirements, str):
+        with open(requirements, "r") as handle:
+            requirements_lines = list(handle.readlines())
+    elif not isinstance(requirements, (list, tuple, set)):
+        raise ValueError(
+            f"Invalid type for requirements. Expected str (file) or List. Got {type(requirements)}"
+        )
+    else:
+        requirements_lines = requirements
+    requirements = {
+        _standardize_package_name(_REQ_SPLIT_EXPR.split(line, 1)[0]): line.strip()
+        for line in requirements_lines
+        if line.strip() and not line.startswith("#")
+    }
     log.debug("Requirements: %s", requirements)
 
     # If extras_modules are given, use them as the submodules list
