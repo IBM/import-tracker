@@ -94,6 +94,14 @@ def parse_requirements(
     missing_extras_modules = [
         mod for mod in extras_modules if mod not in library_import_mapping
     ]
+    if extras_modules_post_filter is not None:
+        missing_extras_modules.extend(
+            [
+                mod
+                for mod in extras_modules_post_filter
+                if mod not in library_import_mapping
+            ]
+        )
     assert (
         not missing_extras_modules
     ), f"No tracked imports found for: {missing_extras_modules}"
