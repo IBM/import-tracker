@@ -142,3 +142,17 @@ def test_parse_requirements_bad_requirements_type():
     # Make sure the assertion is tripped
     with pytest.raises(ValueError):
         parse_requirements({"foo": "bar"}, "sample_lib", ["foobar"])
+
+
+def test_single_extras_module():
+    """Make sure that for a library with a single extras module and a non-zero
+    set of non-extra modules, the deps for the extra module are correctly
+    allocated.
+    """
+    requirements, extras_require = parse_requirements(
+        ["alchemy-logging", "PyYaml"],
+        "single_extra",
+        ["single_extra.extra"],
+    )
+    assert requirements == ["alchemy-logging"]
+    assert extras_require == {"single_extra.extra": ["PyYaml"]}
