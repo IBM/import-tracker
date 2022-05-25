@@ -63,13 +63,27 @@ def parse_requirements(
     }
     log.debug("Requirements: %s", requirements)
 
+    # If there is only a single extras_module, we'll compute _all_ extras and
+    # then only return the extra requested. This fixes the case where a library
+    # has only a single optional module, but several non-optional which would
+    # cause the optional module's imports to be incorrectly associated with the
+    # global module set.
+    extras_modules_post_filter = None
+    if extras_modules and len(extras_modules) == 1:
+        log.debug2("Found a single extras_module")
+        extras_modules_post_filter = extras_modules
+        extras_modules = None
+
     # If extras_modules are given, use them as the submodules list
     if extras_modules:
         log.debug2("Only recursing on extras modules: %s", extras_modules)
         kwargs["submodules"] = extras_modules
+    else:
+        log.debug2("Using all extras modules")
 
     # Get the set of required modules for each of the listed extras modules
     library_import_mapping = track_module(library_name, recursive=True, **kwargs)
+    log.debug4("Library Import Mapping:\n%s", library_import_mapping)
 
     # If no extras_modules are given, track them all
     if not extras_modules:
@@ -137,6 +151,9 @@ def parse_requirements(
     return _map_requirements(standardized_requirements, common_imports), {
         set_name: _map_requirements(standardized_requirements, import_set)
         for set_name, import_set in extras_require_sets.items()
+        if (
+            extras_modules_post_filter is None or set_name in extras_modules_post_filter
+        )
     }
 
 
