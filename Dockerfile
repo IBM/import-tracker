@@ -27,6 +27,7 @@ RUN true && \
 ##
 FROM base as test
 COPY . /src
+ARG RUN_FMT="true"
 RUN true && \
     ./scripts/run_tests.sh && \
     RELEASE_DRY_RUN=true RELEASE_VERSION=0.0.0 \
