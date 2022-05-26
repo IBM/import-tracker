@@ -10,14 +10,13 @@ FROM ubuntu:18.04
 ARG PYTHON_VERSION=3.7
 RUN true && \
     apt-get update && \
-    apt-get install software-properties-common -y && \
+    apt-get install software-properties-common curl -y && \
     add-apt-repository ppa:deadsnakes/ppa -y && \
     apt-get update && \
-    DEBIAN_FRONTEND="noninteractive" apt-get install \
+    DEBIAN_FRONTEND="noninteractive" apt-get install -y \
         python${PYTHON_VERSION} \
-        python${PYTHON_VERSION}-distutils \
-        python3-pip -y && \
-    pip3 install pip -U && \
+        python${PYTHON_VERSION}-distutils && \
+    curl -sS https://bootstrap.pypa.io/get-pip.py | python${PYTHON_VERSION} && \
     ln -s $(which python${PYTHON_VERSION}) /usr/local/bin/python && \
     ln -s $(which python${PYTHON_VERSION}) /usr/local/bin/python3 && \
     true
