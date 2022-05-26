@@ -49,7 +49,7 @@ def _get_dylib_dir():
     sample_dylib = None
     if all_mod_paths:
         sample_dylib = all_mod_paths[0]
-    else:
+    else:  # pragma: no cover
         # If not found with the above, look through libraries that are known to
         # sometimes be packaged as compiled extensions
         #
@@ -69,7 +69,7 @@ def _get_dylib_dir():
 
     # If all else fails, we'll just return a sentinel string. This will fail to
     # match in the below check for builtin modules
-    return "BADPATH"
+    return "BADPATH"  # pragma: no cover
 
 
 # The path where global modules are found
