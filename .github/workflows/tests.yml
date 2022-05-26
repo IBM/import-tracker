@@ -71,7 +71,7 @@ jobs:
                   docker build . --target=test --build-arg BASE_IMAGE=python-ppa --build-arg RUN_FMT=false
               env:
                   PYTHON_VERSION: "3.9"
-    build-31-ppa0:
+    build-310-ppa:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v2
