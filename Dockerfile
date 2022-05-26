@@ -3,7 +3,8 @@
 # This phase sets up dependencies for the other phases
 ##
 ARG PYTHON_VERSION=3.7
-FROM python:${PYTHON_VERSION}-slim as base
+ARG BASE_IMAGE=python:${PYTHON_VERSION}-slim
+FROM ${BASE_IMAGE} as base
 
 # This image is only for building, so we run as root
 WORKDIR /src
