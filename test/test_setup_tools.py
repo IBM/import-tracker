@@ -101,10 +101,12 @@ def test_parse_requirements_add_subset_of_submodules():
     )
 
     # Make sure the right parsing happened
-    assert requirements == ["PyYaml >= 6.0", "import-tracker"]
+    assert sorted(requirements) == sorted(
+        ["alchemy-logging>=1.0.3", "PyYaml >= 6.0", "import-tracker"]
+    )
     assert extras_require == {
-        "sample_lib.submod1": sorted(["conditional_deps"]),
-        "sample_lib.submod2": sorted(["alchemy-logging>=1.0.3"]),
+        "sample_lib.submod1": ["conditional_deps"],
+        "sample_lib.submod2": [],
         "all": sorted(sample_lib_requirements),
     }
 
@@ -155,4 +157,7 @@ def test_single_extras_module():
         ["single_extra.extra"],
     )
     assert requirements == ["alchemy-logging"]
-    assert extras_require == {"single_extra.extra": ["PyYaml"]}
+    assert extras_require == {
+        "all": sorted(["alchemy-logging", "PyYaml"]),
+        "single_extra.extra": ["PyYaml"],
+    }

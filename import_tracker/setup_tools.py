@@ -63,24 +63,6 @@ def parse_requirements(
     }
     log.debug("Requirements: %s", requirements)
 
-    # If there is only a single extras_module, we'll compute _all_ extras and
-    # then only return the extra requested. This fixes the case where a library
-    # has only a single optional module, but several non-optional which would
-    # cause the optional module's imports to be incorrectly associated with the
-    # global module set.
-    extras_modules_post_filter = None
-    if extras_modules and len(extras_modules) == 1:
-        log.debug2("Found a single extras_module")
-        extras_modules_post_filter = extras_modules
-        extras_modules = None
-
-    # If extras_modules are given, use them as the submodules list
-    if extras_modules:
-        log.debug2("Only recursing on extras modules: %s", extras_modules)
-        kwargs["submodules"] = extras_modules
-    else:
-        log.debug2("Using all extras modules")
-
     # Get the set of required modules for each of the listed extras modules
     library_import_mapping = track_module(library_name, recursive=True, **kwargs)
     log.debug4("Library Import Mapping:\n%s", library_import_mapping)
@@ -94,36 +76,50 @@ def parse_requirements(
     missing_extras_modules = [
         mod for mod in extras_modules if mod not in library_import_mapping
     ]
-    if extras_modules_post_filter is not None:
-        missing_extras_modules.extend(
-            [
-                mod
-                for mod in extras_modules_post_filter
-                if mod not in library_import_mapping
-            ]
-        )
     assert (
         not missing_extras_modules
     ), f"No tracked imports found for: {missing_extras_modules}"
     import_sets = {
-        mod: set(_get_required_packages_for_imports(library_import_mapping[mod]))
-        for mod in extras_modules
+        mod_name: set(_get_required_packages_for_imports(mod))
+        for mod_name, mod in library_import_mapping.items()
     }
     log.debug("Import sets: %s", import_sets)
 
-    # Determine the common requirements from the intersection of all import sets
-    common_imports = None
-    for import_set in import_sets.values():
-        if common_imports is None:
-            common_imports = import_set
+    # Determine the common requirements as the intersection of all extras sets
+    # union'ed with all other import sets
+    extras_modules_tree = {}
+    for extras_module in extras_modules:
+        parent = extras_modules_tree
+        for part in extras_module.split("."):
+            parent = parent.setdefault(part, {})
+    log.debug4("Extras Modules Tree: %s", extras_modules_tree)
+
+    common_intersection = None
+    non_extra_union = set()
+    for import_set_name, import_set in import_sets.items():
+        if common_intersection is None:
+            common_intersection = import_set
         else:
-            common_imports = common_imports.intersection(import_set)
-    log.debug("Common imports: %s", common_imports)
+            common_intersection = common_intersection.intersection(import_set)
+
+        # Determine if this import set falls outside of the extras
+        parent = extras_modules_tree
+        for part in import_set_name.split("."):
+            parent = parent.get(part)
+            if parent is None:
+                non_extra_union = non_extra_union.union(import_set)
+                break
+
+    common_imports = common_intersection.union(non_extra_union)
+    log.debug3("Common intersection: %s", common_intersection)
+    log.debug3("Non extra union: %s", non_extra_union)
+    log.debug("Common Imports: %s", common_imports)
 
     # Compute the sets of unique requirements for each tracked module
     extras_require_sets = {
         set_name: import_set - common_imports
         for set_name, import_set in import_sets.items()
+        if set_name in extras_modules
     }
     log.debug("Extras require sets: %s", extras_require_sets)
 
@@ -159,9 +155,6 @@ def parse_requirements(
     return _map_requirements(standardized_requirements, common_imports), {
         set_name: _map_requirements(standardized_requirements, import_set)
         for set_name, import_set in extras_require_sets.items()
-        if (
-            extras_modules_post_filter is None or set_name in extras_modules_post_filter
-        )
     }
 
 
