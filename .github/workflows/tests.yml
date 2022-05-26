@@ -48,7 +48,7 @@ jobs:
             - name: Run unit tests
               run: |
                   docker build . -f ppa.dockerfile -t python-ppa --build-arg PYTHON_VERSION=${PYTHON_VERSION}
-                  docker build . --target=test --build-arg BASE_IMAGE=python-ppa
+                  docker build . --target=test --build-arg BASE_IMAGE=python-ppa --build-arg RUN_FMT=false
               env:
                   PYTHON_VERSION: "3.7"
     build-38-ppa:
@@ -58,7 +58,7 @@ jobs:
             - name: Run unit tests
               run: |
                   docker build . -f ppa.dockerfile -t python-ppa --build-arg PYTHON_VERSION=${PYTHON_VERSION}
-                  docker build . --target=test --build-arg BASE_IMAGE=python-ppa
+                  docker build . --target=test --build-arg BASE_IMAGE=python-ppa --build-arg RUN_FMT=false
               env:
                   PYTHON_VERSION: "3.8"
     build-39-ppa:
@@ -68,7 +68,7 @@ jobs:
             - name: Run unit tests
               run: |
                   docker build . -f ppa.dockerfile -t python-ppa --build-arg PYTHON_VERSION=${PYTHON_VERSION}
-                  docker build . --target=test --build-arg BASE_IMAGE=python-ppa
+                  docker build . --target=test --build-arg BASE_IMAGE=python-ppa --build-arg RUN_FMT=false
               env:
                   PYTHON_VERSION: "3.9"
     build-31-ppa0:
@@ -78,6 +78,6 @@ jobs:
             - name: Run unit tests
               run: |
                   docker build . -f ppa.dockerfile -t python-ppa --build-arg PYTHON_VERSION=${PYTHON_VERSION}
-                  docker build . --target=test --build-arg BASE_IMAGE=python-ppa
+                  docker build . --target=test --build-arg BASE_IMAGE=python-ppa --build-arg RUN_FMT=false
               env:
                   PYTHON_VERSION: "3.10"
