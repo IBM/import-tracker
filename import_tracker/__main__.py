@@ -19,7 +19,6 @@ from concurrent.futures import ThreadPoolExecutor
 from types import ModuleType
 from typing import Dict, List, Optional, Set, Union
 import argparse
-import cmath
 import importlib
 import inspect
 import json
@@ -36,9 +35,46 @@ from .log import log
 
 ## Implementation Details ######################################################
 
+
+def _get_dylib_dir():
+    """Differnet versions/builds of python manage different builtin libraries as
+    "builtins" versus extensions. As such, we need some heuristics to try to
+    find the base directory that holds shared objects from the standard library.
+    """
+    is_dylib = lambda x: x is not None and (x.endswith(".so") or x.endswith(".dylib"))
+    all_mod_paths = list(
+        filter(is_dylib, (getattr(mod, "__file__", "") for mod in sys.modules.values()))
+    )
+    # If there's any dylib found, return the parent directory
+    sample_dylib = None
+    if all_mod_paths:
+        sample_dylib = all_mod_paths[0]
+    else:  # pragma: no cover
+        # If not found with the above, look through libraries that are known to
+        # sometimes be packaged as compiled extensions
+        #
+        # NOTE: This code may be unnecessary, but it is intended to catch future
+        #   cases where the above does not yield results
+        #
+        # More names can be added here as needed
+        for lib_name in ["cmath"]:
+            lib = importlib.import_module(lib_name)
+            fname = getattr(lib, "__file__", None)
+            if is_dylib(fname):
+                sample_dylib = fname
+                break
+
+    if sample_dylib is not None:
+        return os.path.realpath(os.path.dirname(sample_dylib))
+
+    # If all else fails, we'll just return a sentinel string. This will fail to
+    # match in the below check for builtin modules
+    return "BADPATH"  # pragma: no cover
+
+
 # The path where global modules are found
 _std_lib_dir = os.path.realpath(os.path.dirname(os.__file__))
-_std_dylib_dir = os.path.realpath(os.path.dirname(cmath.__file__))
+_std_dylib_dir = _get_dylib_dir()
 
 
 def _get_import_parent_path(mod) -> str:

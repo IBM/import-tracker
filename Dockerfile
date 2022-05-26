@@ -3,7 +3,8 @@
 # This phase sets up dependencies for the other phases
 ##
 ARG PYTHON_VERSION=3.7
-FROM python:${PYTHON_VERSION}-slim as base
+ARG BASE_IMAGE=python:${PYTHON_VERSION}-slim
+FROM ${BASE_IMAGE} as base
 
 # This image is only for building, so we run as root
 WORKDIR /src
@@ -26,6 +27,7 @@ RUN true && \
 ##
 FROM base as test
 COPY . /src
+ARG RUN_FMT="true"
 RUN true && \
     ./scripts/run_tests.sh && \
     RELEASE_DRY_RUN=true RELEASE_VERSION=0.0.0 \
