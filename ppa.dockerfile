@@ -17,7 +17,7 @@ RUN true && \
         python${PYTHON_VERSION} \
         python${PYTHON_VERSION}-distutils \
         python3-pip -y && \
-    python${PYTHON_VERSION} -m pip install pip -U && \
+    pip3 install pip -U && \
     ln -s $(which python${PYTHON_VERSION}) /usr/local/bin/python && \
     ln -s $(which python${PYTHON_VERSION}) /usr/local/bin/python3 && \
     true
