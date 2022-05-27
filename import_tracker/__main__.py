@@ -28,7 +28,7 @@ import sys
 import traceback
 
 # Local
-from .constants import THIS_PACKAGE
+from .constants import THIS_PACKAGE, TYPE_DIRECT, TYPE_TRANSITIVE
 from .import_tracker import track_module
 from .lazy_import_errors import enable_tracking_mode
 from .log import log
@@ -507,7 +507,9 @@ def detect_transitive(
         if isinstance(dependencies, set):
             dependencies = {name: {} for name in dependencies}
         for dep_name, dep_info in dependencies.items():
-            dep_info["type"] = "direct" if dep_name in direct_mods else "transitive"
+            dep_info["type"] = (
+                TYPE_DIRECT if dep_name in direct_mods else TYPE_TRANSITIVE
+            )
         updated_mapping[module_name] = dependencies
 
     return updated_mapping
