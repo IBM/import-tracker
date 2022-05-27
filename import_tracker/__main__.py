@@ -503,14 +503,20 @@ def detect_transitive(
         )
         log.debug3("Direct modules for [%s]: %s", module_name, direct_mods)
 
-        # For each dependency, check whether it's in the direct list
+        # If it's just a set of strings, make it a dict
         if isinstance(dependencies, set):
             dependencies = {name: {} for name in dependencies}
+
+        # For each dependency, check whether it's in the direct list
         for dep_name, dep_info in dependencies.items():
+            # If the dep_info is a list, it's a stack trace
+            if isinstance(dep_info, list):
+                dep_info = {"stack": dep_info}
+
             dep_info["type"] = (
                 TYPE_DIRECT if dep_name in direct_mods else TYPE_TRANSITIVE
             )
-        updated_mapping[module_name] = dependencies
+            updated_mapping.setdefault(module_name, {})[dep_name] = dep_info
 
     return updated_mapping
 
