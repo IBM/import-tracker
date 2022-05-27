@@ -11,7 +11,7 @@ import re
 import sys
 
 # Local
-from .constants import THIS_PACKAGE
+from .constants import THIS_PACKAGE, TYPE_DIRECT
 from .import_tracker import track_module
 from .log import log
 
@@ -64,13 +64,28 @@ def parse_requirements(
     log.debug("Requirements: %s", requirements)
 
     # Get the set of required modules for each of the listed extras modules
-    library_import_mapping = track_module(library_name, recursive=True, **kwargs)
+    library_import_mapping = track_module(
+        library_name,
+        recursive=True,
+        detect_transitive=True,
+        **kwargs,
+    )
     log.debug4("Library Import Mapping:\n%s", library_import_mapping)
 
     # If no extras_modules are given, track them all
     if not extras_modules:
         extras_modules = list(library_import_mapping.keys())
     log.debug2("Tracking extras modules: %s", extras_modules)
+
+    # Get a mapping from all known imports to their requirement names
+    requirement_name_map = {}
+    for imports in library_import_mapping.values():
+        for import_name in imports:
+            if import_name not in requirement_name_map:
+                requirement_name_map[import_name] = _get_required_packages_for_imports(
+                    [import_name]
+                )[0]
+    log.debug3("Requirement Name Map: %s", requirement_name_map)
 
     # Get the import sets for each requested extras
     missing_extras_modules = [
@@ -80,8 +95,8 @@ def parse_requirements(
         not missing_extras_modules
     ), f"No tracked imports found for: {missing_extras_modules}"
     import_sets = {
-        mod_name: set(_get_required_packages_for_imports(mod))
-        for mod_name, mod in library_import_mapping.items()
+        mod_name: {requirement_name_map[import_name] for import_name in imports}
+        for mod_name, imports in library_import_mapping.items()
     }
     log.debug("Import sets: %s", import_sets)
 
@@ -109,6 +124,16 @@ def parse_requirements(
             if parent is None:
                 non_extra_union = non_extra_union.union(import_set)
                 break
+
+    # Add direct dependencies of all parent modules to the non_extra_union
+    for module_name, imports_info in library_import_mapping.items():
+        if module_name not in extras_modules:
+            direct_deps = {
+                requirement_name_map[dep_name]
+                for dep_name, dep_info in imports_info.items()
+                if dep_info.get("type") == TYPE_DIRECT
+            }
+            non_extra_union = non_extra_union.union(direct_deps)
 
     common_imports = common_intersection.union(non_extra_union)
     log.debug3("Common intersection: %s", common_intersection)

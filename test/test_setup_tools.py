@@ -161,3 +161,19 @@ def test_single_extras_module():
         "all": sorted(["alchemy-logging", "PyYaml"]),
         "single_extra.extra": ["PyYaml"],
     }
+
+
+def test_parent_direct_deps():
+    """Make sure that direct dependencies of parent modules are correctly
+    attributed when holding children as extras that also require the same deps
+    """
+    requirements, extras_require = parse_requirements(
+        ["alchemy-logging", "PyYaml"],
+        "direct_dep_ambiguous",
+        ["direct_dep_ambiguous.foo"],
+    )
+    assert requirements == ["alchemy-logging"]
+    assert extras_require == {
+        "all": sorted(["PyYaml", "alchemy-logging"]),
+        "direct_dep_ambiguous.foo": ["PyYaml"],
+    }
