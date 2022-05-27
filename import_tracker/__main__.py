@@ -479,6 +479,40 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         self._ending_modules = set(sys.modules.keys()) - {trigger_module_name}
 
 
+def detect_transitive(
+    downstream_mapping: Dict[str, Union[str, dict]],
+) -> Dict[str, dict]:
+    """For each entry in the downstream mapping, determine if it is a direct
+    dependency of the module or transitively inherited
+    """
+    updated_mapping = {}
+    for module_name, dependencies in downstream_mapping.items():
+        # Get the module from sys.modules
+        mod = sys.modules.get(module_name)
+        assert mod is not None, f"Module [{module_name}] not found in sys.modules"
+
+        # Get a list of all modules that are directly required by looking at its
+        # full set of attrs
+        direct_mods = set(
+            [
+                attr.__name__
+                if isinstance(attr, ModuleType)
+                else getattr(attr, "__module__", None)
+                for attr in vars(mod).values()
+            ]
+        )
+        log.debug3("Direct modules for [%s]: %s", module_name, direct_mods)
+
+        # For each dependency, check whether it's in the direct list
+        if isinstance(dependencies, set):
+            dependencies = {name: {} for name in dependencies}
+        for dep_name, dep_info in dependencies.items():
+            dep_info["type"] = "direct" if dep_name in direct_mods else "transitive"
+        updated_mapping[module_name] = dependencies
+
+    return updated_mapping
+
+
 ## Main ########################################################################
 
 
@@ -542,6 +576,13 @@ def main():
         default=False,
         help="Store the stack trace of imports belonging to the tracked module",
     )
+    parser.add_argument(
+        "--detect_transitive",
+        "-d",
+        action="store_true",
+        default=False,
+        help="Detect whether each dependency is 'direct' or 'transitive'",
+    )
     args = parser.parse_args()
 
     # Validate sets of args
@@ -587,6 +628,11 @@ def main():
         full_module_name: _get_non_std_modules(tracker_finder.get_all_new_modules())
     }
 
+    # If tracking direct vs transitive, update the mapping here
+    if args.detect_transitive:
+        log.debug("Tracking direct vs transitive")
+        downstream_mapping = detect_transitive(downstream_mapping)
+
     # If recursing, do so now by spawning a subprocess for each internal
     # downstream. This must be done in a separate interpreter instance so that
     # the imports are cleanly reset for each downstream.
@@ -615,6 +661,7 @@ def main():
             recursive=False,
             side_effect_modules=args.side_effect_modules,
             track_import_stack=args.track_import_stack,
+            detect_transitive=args.detect_transitive,
         )
 
         # Create the thread pool to manage the subprocesses
@@ -662,14 +709,10 @@ def main():
 
     # Set up the output dict depending on whether or not the stack info is being
     # tracked
-    if args.track_import_stack:
-        output_dict = {
-            key: dict(sorted(val.items())) for key, val in downstream_mapping.items()
-        }
-    else:
-        output_dict = {
-            key: sorted(list(val)) for key, val in downstream_mapping.items()
-        }
+    output_dict = {
+        key: dict(sorted(val.items())) if isinstance(val, dict) else sorted(list(val))
+        for key, val in downstream_mapping.items()
+    }
 
     # Print out the json dump
     print(json.dumps(output_dict, indent=args.indent))
