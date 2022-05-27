@@ -55,9 +55,8 @@ ARG RELEASE_VERSION
 ARG RELEASE_DRY_RUN
 COPY ./test /src/test
 COPY ./scripts/run_tests.sh /src/scripts/run_tests.sh
+COPY ./scripts/install_release.sh /src/scripts/install_release.sh
 RUN true && \
-    ([ "$RELEASE_DRY_RUN" != "true" ] && sleep 90 || true) && \
-    pip cache purge && \
-    pip install import_tracker==${RELEASE_VERSION} && \
+    ./scripts/install_release.sh && \
     ./scripts/run_tests.sh && \
     true
