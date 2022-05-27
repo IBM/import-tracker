@@ -518,6 +518,9 @@ def detect_transitive(
             )
             updated_mapping.setdefault(module_name, {})[dep_name] = dep_info
 
+        # Make sure it's present, even with an empty list
+        updated_mapping.setdefault(module_name, {})
+
     return updated_mapping
 
 

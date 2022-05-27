@@ -266,7 +266,7 @@ def test_import_stack_tracking(capsys):
     }
 
 
-def test_detect_transitive(capsys):
+def test_detect_transitive_no_stack_traces(capsys):
     """Test that --detect_transitive works as expected"""
     with cli_args(
         "--name",
@@ -295,11 +295,7 @@ def test_detect_transitive(capsys):
                 "type": constants.TYPE_DIRECT,
             },
         },
-        "direct_dep_ambiguous.bar": {
-            "alog": {
-                "type": constants.TYPE_TRANSITIVE,
-            }
-        },
+        "direct_dep_ambiguous.bar": {},
     }
 
 
@@ -329,10 +325,15 @@ def test_detect_transitive_with_stack_traces(capsys):
             "alog": {
                 "stack": [
                     {
-                        "filename": f"{test_lib_dir}/__init__.py",
-                        "lineno": 3,
+                        "filename": f"{test_lib_dir}/foo.py",
+                        "lineno": 6,
                         "code_context": ["import alog"],
-                    }
+                    },
+                    {
+                        "filename": f"{test_lib_dir}/__init__.py",
+                        "lineno": 9,
+                        "code_context": ["from . import bar, foo"],
+                    },
                 ],
                 "type": "direct",
             },
@@ -345,16 +346,30 @@ def test_detect_transitive_with_stack_traces(capsys):
                     },
                     {
                         "filename": f"{test_lib_dir}/__init__.py",
-                        "lineno": 7,
+                        "lineno": 9,
                         "code_context": ["from . import bar, foo"],
                     },
                 ],
                 "type": "transitive",
             },
         },
-        "direct_dep_ambiguous.bar": {"alog": {"stack": [], "type": "transitive"}},
+        "direct_dep_ambiguous.bar": {},
         "direct_dep_ambiguous.foo": {
-            "alog": {"stack": [], "type": "direct"},
+            "alog": {
+                "stack": [
+                    {
+                        "filename": f"{test_lib_dir}/foo.py",
+                        "lineno": 6,
+                        "code_context": ["import alog"],
+                    },
+                    {
+                        "filename": f"{test_lib_dir}/__init__.py",
+                        "lineno": 9,
+                        "code_context": ["from . import bar, foo"],
+                    },
+                ],
+                "type": "direct",
+            },
             "yaml": {
                 "stack": [
                     {
@@ -364,7 +379,7 @@ def test_detect_transitive_with_stack_traces(capsys):
                     },
                     {
                         "filename": f"{test_lib_dir}/__init__.py",
-                        "lineno": 7,
+                        "lineno": 9,
                         "code_context": ["from . import bar, foo"],
                     },
                 ],
