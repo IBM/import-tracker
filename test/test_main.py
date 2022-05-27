@@ -266,7 +266,7 @@ def test_import_stack_tracking(capsys):
     }
 
 
-def test_detect_transitive(capsys):
+def test_detect_transitive_no_stack_traces(capsys):
     """Test that --detect_transitive works as expected"""
     with cli_args(
         "--name",
@@ -295,9 +295,95 @@ def test_detect_transitive(capsys):
                 "type": constants.TYPE_DIRECT,
             },
         },
-        "direct_dep_ambiguous.bar": {
+        "direct_dep_ambiguous.bar": {},
+    }
+
+
+def test_detect_transitive_with_stack_traces(capsys):
+    """Test that --detect_transitive works as expected"""
+    with cli_args(
+        "--name",
+        "direct_dep_ambiguous",
+        "--recursive",
+        "--detect_transitive",
+        "--track_import_stack",
+    ):
+        main()
+    captured = capsys.readouterr()
+    assert captured.out
+    parsed_out = json.loads(captured.out)
+
+    test_lib_dir = os.path.realpath(
+        os.path.join(
+            os.path.dirname(__file__),
+            "sample_libs",
+            "direct_dep_ambiguous",
+        )
+    )
+    assert parsed_out == {
+        "direct_dep_ambiguous": {
             "alog": {
-                "type": constants.TYPE_TRANSITIVE,
-            }
+                "stack": [
+                    {
+                        "filename": f"{test_lib_dir}/foo.py",
+                        "lineno": 6,
+                        "code_context": ["import alog"],
+                    },
+                    {
+                        "filename": f"{test_lib_dir}/__init__.py",
+                        "lineno": 9,
+                        "code_context": ["from . import bar, foo"],
+                    },
+                ],
+                "type": "direct",
+            },
+            "yaml": {
+                "stack": [
+                    {
+                        "filename": f"{test_lib_dir}/foo.py",
+                        "lineno": 3,
+                        "code_context": ["import yaml"],
+                    },
+                    {
+                        "filename": f"{test_lib_dir}/__init__.py",
+                        "lineno": 9,
+                        "code_context": ["from . import bar, foo"],
+                    },
+                ],
+                "type": "transitive",
+            },
+        },
+        "direct_dep_ambiguous.bar": {},
+        "direct_dep_ambiguous.foo": {
+            "alog": {
+                "stack": [
+                    {
+                        "filename": f"{test_lib_dir}/foo.py",
+                        "lineno": 6,
+                        "code_context": ["import alog"],
+                    },
+                    {
+                        "filename": f"{test_lib_dir}/__init__.py",
+                        "lineno": 9,
+                        "code_context": ["from . import bar, foo"],
+                    },
+                ],
+                "type": "direct",
+            },
+            "yaml": {
+                "stack": [
+                    {
+                        "filename": f"{test_lib_dir}/foo.py",
+                        "lineno": 3,
+                        "code_context": ["import yaml"],
+                    },
+                    {
+                        "filename": f"{test_lib_dir}/__init__.py",
+                        "lineno": 9,
+                        "code_context": ["from . import bar, foo"],
+                    },
+                ],
+                "type": "direct",
+            },
         },
     }
