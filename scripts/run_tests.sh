@@ -6,7 +6,13 @@ cd "$BASE_DIR"
 
 if [ "$PARALLEL" == "1" ]
 then
-    procs=${NPROCS:-$(nproc)}
+    if [[ "$OSTYPE" =~ "darwin"* ]]
+    then
+        num_procs=$(sysctl -n hw.physicalcpu)
+    else
+        num_procs=$(nproc)
+    fi
+    procs=${NPROCS:-$num_procs}
     echo "Running tests in parallel with [$procs] workers"
     procs_arg="-n $procs"
 else

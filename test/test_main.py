@@ -14,6 +14,7 @@ import pytest
 
 # Local
 from .helpers import reset_sys_modules
+from import_tracker import constants
 from import_tracker.__main__ import main
 import import_tracker
 
@@ -262,4 +263,41 @@ def test_import_stack_tracking(capsys):
                 ],
             },
         ],
+    }
+
+
+def test_detect_transitive(capsys):
+    """Test that --detect_transitive works as expected"""
+    with cli_args(
+        "--name",
+        "direct_dep_ambiguous",
+        "--recursive",
+        "--detect_transitive",
+    ):
+        main()
+    captured = capsys.readouterr()
+    assert captured.out
+    parsed_out = json.loads(captured.out)
+    assert parsed_out == {
+        "direct_dep_ambiguous": {
+            "alog": {
+                "type": constants.TYPE_DIRECT,
+            },
+            "yaml": {
+                "type": constants.TYPE_TRANSITIVE,
+            },
+        },
+        "direct_dep_ambiguous.foo": {
+            "alog": {
+                "type": constants.TYPE_DIRECT,
+            },
+            "yaml": {
+                "type": constants.TYPE_DIRECT,
+            },
+        },
+        "direct_dep_ambiguous.bar": {
+            "alog": {
+                "type": constants.TYPE_TRANSITIVE,
+            }
+        },
     }
