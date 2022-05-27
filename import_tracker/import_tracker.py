@@ -29,6 +29,7 @@ def track_module(
     side_effect_modules: Optional[List[str]] = None,
     submodules: Optional[List[str]] = None,
     track_import_stack: bool = False,
+    detect_transitive: bool = False,
 ) -> Dict[str, List[str]]:
     """This function executes the tracking of a single module by launching a
     subprocess to execute this module against the target module. The
@@ -57,6 +58,8 @@ def track_module(
             List of sub-modules to recurse on (only used when recursive set)
         track_import_stack:  bool
             Store the stack trace of imports belonging to the tracked module
+        detect_transitive:  bool
+            Detect whether each dependency is 'direct' or 'transitive'
 
     Returns:
         import_mapping:  Dict[str, List[str]]
@@ -92,8 +95,11 @@ def track_module(
         cmd += " --submodules " + " ".join(submodules)
     if track_import_stack:
         cmd += " --track_import_stack"
+    if detect_transitive:
+        cmd += " --detect_transitive"
 
     # Launch the process
+    log.debug3("Full Command: %s", cmd)
     proc = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, env=env)
 
     # Wait for the result and parse it as json
