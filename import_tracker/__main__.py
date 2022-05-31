@@ -31,6 +31,7 @@ import traceback
 from .constants import THIS_PACKAGE, TYPE_DIRECT, TYPE_TRANSITIVE
 from .import_tracker import track_module
 from .lazy_import_errors import enable_tracking_mode
+from .lazy_module import LazyModule
 from .log import log
 
 ## Implementation Details ######################################################
@@ -194,6 +195,10 @@ class _DeferredModule(ModuleType):
         """Determine if this deferred module is referenced by the module with
         the given name
         """
+        log.debug4(
+            "Checking whether [%s] is referenced by [%s]", self.__name, module_name
+        )
+
         # Get the module in question
         assert (
             module_name in sys.modules
@@ -216,7 +221,8 @@ class _DeferredModule(ModuleType):
                     [
                         attr
                         for attr in vars(mod).values()
-                        if isinstance(attr, ModuleType)
+                        if not isinstance(attr, LazyModule)
+                        and isinstance(attr, ModuleType)
                         and attr.__name__.startswith(ref_module_pkg)
                         and mod not in checked_modules
                     ]
@@ -453,16 +459,27 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
         # modules and trigger their imports. This fixes the case where a module
         # imports a sibling's attribute which was previously imported and
         # deferred
+        log.debug2("Looking for deferred modules")
         deferred_attrs = []
         while True:
             for mod_name, mod in list(sys.modules.items()):
+                log.debug4("Checking module %s for deferred status", mod_name)
                 if mod_name.startswith(self._tracked_module.split(".")[0]):
                     for attr_name, attr in vars(mod).items():
+                        log.debug4("Checking module attr [%s.%s]", mod_name, attr_name)
+                        if isinstance(attr, LazyModule):
+                            log.debug2(
+                                "Skipping lazy module attr [%s.%s]", mod_name, attr_name
+                            )
+                            continue
                         if (
                             isinstance(attr, _DeferredModule)
                             and not attr.imported
                             and attr.referenced_by(self._tracked_module)
                         ):
+                            log.debug3(
+                                "Found deferred module %s.%s", mod_name, attr_name
+                            )
                             deferred_attrs.append((mod_name, attr_name, attr))
             if not deferred_attrs:
                 break
@@ -473,6 +490,8 @@ class ImportTrackerMetaFinder(importlib.abc.MetaPathFinder):
                     "Done finalizing deferred import for %s.%s", mod_name, attr_name
                 )
             deferred_attrs = []
+
+        log.debug2("Done looking for deferred modules")
 
         # Capture the set of imports in sys.modules (excluding the module that
         # triggered this)
