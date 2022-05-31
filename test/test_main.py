@@ -387,3 +387,20 @@ def test_detect_transitive_with_stack_traces(capsys):
             },
         },
     }
+
+
+def test_lazy_module_trigger(capsys):
+    """Make sure that a sub-module which holds LazyModule attrs does not
+    incorrectly trigger their imports when run through import_tracker.
+    """
+    with cli_args("--name", "lazy_module", "--recursive"):
+        main()
+    captured = capsys.readouterr()
+    assert captured.out
+    parsed_out = json.loads(captured.out)
+
+    assert parsed_out == {
+        "lazy_module": ["alog"],
+        "lazy_module.lazy_deps": [],
+        "lazy_module.mod": ["alog"],
+    }
