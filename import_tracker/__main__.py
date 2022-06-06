@@ -513,12 +513,15 @@ def detect_transitive(
         # Get a list of all modules that are directly required by looking at its
         # full set of attrs
         direct_mods = set(
-            [
-                attr.__name__
-                if isinstance(attr, ModuleType)
-                else getattr(attr, "__module__", None)
-                for attr in vars(mod).values()
-            ]
+            map(
+                lambda x: x.split(".")[0] if x is not None else None,
+                [
+                    attr.__name__
+                    if isinstance(attr, ModuleType)
+                    else getattr(attr, "__module__", None)
+                    for attr in vars(mod).values()
+                ],
+            )
         )
         log.debug3("Direct modules for [%s]: %s", module_name, direct_mods)
 
