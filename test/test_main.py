@@ -416,6 +416,15 @@ def test_detect_transitive_with_nested_module(capsys):
             "sample_lib": {"type": "direct"},
             "yaml": {"type": "transitive"},
         },
+        "direct_dep_nested.nested": {
+            "alog": {"type": "transitive"},
+            "conditional_deps": {"type": "transitive"},
+            "sample_lib": {"type": "direct"},
+            "yaml": {"type": "transitive"},
+        },
+        "direct_dep_nested.nested2": {
+            "alog": {"type": "direct"},
+        },
     }
 
 
