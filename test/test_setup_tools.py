@@ -177,3 +177,20 @@ def test_parent_direct_deps():
         "all": sorted(["PyYaml", "alchemy-logging"]),
         "direct_dep_ambiguous.foo": ["PyYaml"],
     }
+
+
+def test_nested_deps():
+    """Make sure that direct depencencies show up in requirements
+    for nested modules
+    """
+    requirements, extras_require = parse_requirements(
+        ["sample_lib", "PyYaml", "alchemy-logging"],
+        "direct_dep_nested",
+        ["direct_dep_nested.nested", "direct_dep_nested.nested2"],
+    )
+    assert requirements == sorted(["alchemy-logging", "sample_lib"])
+    assert extras_require == {
+        "all": sorted(["sample_lib", "PyYaml", "alchemy-logging"]),
+        "direct_dep_nested.nested": sorted(["PyYaml"]),
+        "direct_dep_nested.nested2": sorted([]),
+    }
