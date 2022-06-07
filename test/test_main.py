@@ -389,6 +389,45 @@ def test_detect_transitive_with_stack_traces(capsys):
     }
 
 
+def test_detect_transitive_with_nested_module(capsys):
+    """Test that --detect_transitive works with nested modules as expected"""
+    with cli_args(
+        "--name",
+        "direct_dep_nested",
+        "--recursive",
+        "--detect_transitive",
+    ):
+        main()
+    captured = capsys.readouterr()
+    assert captured.out
+    parsed_out = json.loads(captured.out)
+
+    test_lib_dir = os.path.realpath(
+        os.path.join(
+            os.path.dirname(__file__),
+            "sample_libs",
+            "direct_dep_nested",
+        )
+    )
+    assert parsed_out == {
+        "direct_dep_nested": {
+            "alog": {"type": "transitive"},
+            "conditional_deps": {"type": "transitive"},
+            "sample_lib": {"type": "direct"},
+            "yaml": {"type": "transitive"},
+        },
+        "direct_dep_nested.nested": {
+            "alog": {"type": "transitive"},
+            "conditional_deps": {"type": "transitive"},
+            "sample_lib": {"type": "direct"},
+            "yaml": {"type": "transitive"},
+        },
+        "direct_dep_nested.nested2": {
+            "alog": {"type": "direct"},
+        },
+    }
+
+
 def test_lazy_module_trigger(capsys):
     """Make sure that a sub-module which holds LazyModule attrs does not
     incorrectly trigger their imports when run through import_tracker.
