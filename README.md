@@ -8,6 +8,22 @@
 
 -   Programmatically determine the [`install_requires`](https://setuptools.pypa.io/en/latest/userguide/dependency_management.html#declaring-required-dependency) and [`extras_require`](https://setuptools.pypa.io/en/latest/userguide/dependency_management.html#optional-dependencies) arguments to `setuptools.setup` where the extras sets are determined by a set of modules that should be optional.
 
+
+## Table of contents
+<!-- @import "[TOC]" {cmd="toc" depthFrom=2 depthTo=6 orderedList=false} -->
+
+<!-- code_chunk_output -->
+
+- [Table of contents](#table-of-contents)
+- [Running Import Tracker](#running-import-tracker)
+- [Integrating `import_tracker` into a project](#integrating-import_tracker-into-a-project)
+  - [Enabling `lazy_import_errors`](#enabling-lazy_import_errors)
+  - [Using `setup_tools.parse_requirements`](#using-setup_toolsparse_requirements)
+- [Gotchas](#gotchas)
+  - [Minor issue with zsh](#minor-issue-with-zsh)
+
+<!-- /code_chunk_output -->
+
 ## Running Import Tracker
 
 To run `import_tracker` against a project, simply invoke the module's main:
@@ -28,7 +44,7 @@ The main supports the following additional arguments:
 -   `--track_import_stack`: Store the stack trace of imports belonging to the tracked module
     -   **NOTE**: This is _very slow_ and should be used only when performing specific debugging tasks!
 
-## Integrating `import_tracker` into a projects
+## Integrating `import_tracker` into a project
 
 When using `import_tracker` to implement optional dependencies in a project, there are two steps to take:
 
@@ -112,4 +128,21 @@ setuptools.setup(
     extras_require=extras_require,
     packages=setuptools.find_packages(),
 )
+```
+
+## Gotchas
+
+### Minor issue with zsh
+As mentioned before, when using lazy import errors in `import_tracker`, if the import error is triggered within a module that is managed as an extras set, the error message is updated to include instructions on which extras set needs to be installed. The error message might look something like this:
+
+```bash
+ModuleNotFoundError: No module named 'example_module'. 
+
+To install the missing dependencies, run `pip install my_module[my_module.example_module]`
+
+```
+There might be an issue when running `pip install my_module[my_module.example_module]` within a `zsh` environment, since square brackets in `zsh` have special meanings. We have to escape them by putting \ (`backslash`) before them. So for `zsh`, something like this will work:
+
+```
+pip install my_module\[my_module.example_module\]
 ```
