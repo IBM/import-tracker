@@ -125,11 +125,7 @@ class _LazyImportErrorCtx(AbstractContextManager):
         acts as the context manager, so the __enter__ implementation lives in
         the constructor.
         """
-        if (
-            not _TRACKING_MODE
-            and sys.meta_path
-            and not isinstance(sys.meta_path[-1], _LazyErrorMetaFinder)
-        ):
+        if not _TRACKING_MODE and sys.meta_path:
             sys.meta_path.append(_LazyErrorMetaFinder(make_error_message))
 
     @staticmethod
@@ -137,9 +133,9 @@ class _LazyImportErrorCtx(AbstractContextManager):
         """Nothing to do in __enter__ since it's done in __init__"""
         pass
 
-    @classmethod
-    def __exit__(cls, *_, **__):
+    def __exit__(self, *_, **__):
         """On exit, ensure there are no lazy meta finders left"""
+
         while sys.meta_path and isinstance(sys.meta_path[-1], _LazyErrorMetaFinder):
             sys.meta_path.pop()
 
