@@ -125,10 +125,7 @@ class _LazyImportErrorCtx(AbstractContextManager):
         acts as the context manager, so the __enter__ implementation lives in
         the constructor.
         """
-        if (
-            not _TRACKING_MODE
-            and sys.meta_path
-        ):
+        if not _TRACKING_MODE and sys.meta_path:
             sys.meta_path.append(_LazyErrorMetaFinder(make_error_message))
 
     @staticmethod
@@ -141,6 +138,7 @@ class _LazyImportErrorCtx(AbstractContextManager):
 
         while sys.meta_path and isinstance(sys.meta_path[-1], _LazyErrorMetaFinder):
             sys.meta_path.pop()
+
 
 class _LazyErrorAttr(type):
     """This object is used to recursively allow attribute access from a
