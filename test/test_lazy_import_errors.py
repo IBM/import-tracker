@@ -377,3 +377,11 @@ def test_frame_generator_stop():
     correctly if iterated to the end
     """
     list(_LazyErrorMetaFinder._FrameGenerator())
+
+def test_transitive_lazy_import_works():
+    """Make sure transitive imports of modules with lazy imports
+    successfully returns lazy modules
+    """
+    with import_tracker.lazy_import_errors():
+        import lazy_import_errors
+    assert lazy_import_errors.foo.not_there != "NOT THERE"

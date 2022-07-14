@@ -128,7 +128,6 @@ class _LazyImportErrorCtx(AbstractContextManager):
         if (
             not _TRACKING_MODE
             and sys.meta_path
-            and not isinstance(sys.meta_path[-1], _LazyErrorMetaFinder)
         ):
             sys.meta_path.append(_LazyErrorMetaFinder(make_error_message))
 
@@ -137,12 +136,11 @@ class _LazyImportErrorCtx(AbstractContextManager):
         """Nothing to do in __enter__ since it's done in __init__"""
         pass
 
-    @classmethod
-    def __exit__(cls, *_, **__):
+    def __exit__(self, *_, **__):
         """On exit, ensure there are no lazy meta finders left"""
+
         while sys.meta_path and isinstance(sys.meta_path[-1], _LazyErrorMetaFinder):
             sys.meta_path.pop()
-
 
 class _LazyErrorAttr(type):
     """This object is used to recursively allow attribute access from a
