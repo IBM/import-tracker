@@ -2,15 +2,12 @@
 This module implements utilities that enable tracking of third party deps
 through import statements
 """
-
 # Standard
-from typing import Dict, List, Optional
-import copy
-import json
-import logging
+from types import ModuleType
+from typing import Dict, List, Optional, Set, Union
+import dis
+import importlib
 import os
-import shlex
-import subprocess
 import sys
 
 # Local
@@ -23,18 +20,11 @@ from .log import log
 def track_module(
     module_name: str,
     package_name: Optional[str] = None,
-    log_level: Optional[int] = None,
-    recursive: bool = False,
-    num_jobs: int = 0,
-    side_effect_modules: Optional[List[str]] = None,
-    submodules: Optional[List[str]] = None,
+    submodules: Union[List[str], bool] = False,
     track_import_stack: bool = False,
-    detect_transitive: bool = False,
-) -> Dict[str, List[str]]:
-    """This function executes the tracking of a single module by launching a
-    subprocess to execute this module against the target module. The
-    implementation of thie tracking resides in the __main__ in order to
-    carefully control the import ecosystem.
+    include_transitive: bool = False,
+) -> dict:
+    """Track the dependencies of a single python module
 
     Args:
         module_name:  str
@@ -42,66 +32,367 @@ def track_module(
             provided)
         package_name:  Optional[str]
             The parent package name of the module if the module name is relative
-        log_level:  Optional[Union[int, str]]
-            Log level to pass through to the child process
-        recursive:  bool
-            Whether or not to recursively track sub-modules within the target
-            module
-        num_jobs:  int
-            The number of concurrent jobs to run when recursing
-        side_effect_modules:  Optional[List[str]]
-            Some libraries rely on certain import-time side effects in order to
-            perform required import tasks (e.g. global singleton registries).
-            These modules will be allowed to import regardless of where they
-            fall relative to the targeted module.
-        submodules:  Optional[List[str]]
-            List of sub-modules to recurse on (only used when recursive set)
+        submodules:  Union[List[str], bool]
+            If True, all submodules of the given module will also be tracked. If
+            given as a list of strings, only those submodules will be tracked.
+            If False, only the named module will be tracked.
         track_import_stack:  bool
-            Store the stack trace of imports belonging to the tracked module
-        detect_transitive:  bool
-            Detect whether each dependency is 'direct' or 'transitive'
+            Store the stacks of modules causing each dependency of each tracked
+            module for debugging purposes.
+        include_transitive:  bool
+            Include transitive dependencies of the third party dependencies that
+            are direct dependencies of modules within the target module's parent
+            library.
 
     Returns:
-        import_mapping:  Dict[str, List[str]]
+        import_mapping:  dict
             The mapping from fully-qualified module name to the set of imports
-            needed by the given module
+            needed by the given module. If tracking import stacks, each
+            dependency of a given module maps to a list of lists that each
+            outline one path through imported modules that caused the given
+            dependency association.
     """
-    # Set up the environment with all sys.paths available (included those added
-    # in code)
-    env = dict(copy.deepcopy(os.environ))
-    env["PYTHONPATH"] = ":".join(sys.path)
 
-    # Determine the log level
-    if isinstance(log_level, str):
-        log_level = getattr(logging, log_level.upper(), None)
-    if log_level is None:
-        log_level = os.environ.get("LOG_LEVEL", "error")
+    # Import the target module
+    imported = importlib.import_module(module_name, package=package_name)
 
-    # Set up the command to run this module
-    cmd = cmd = "{} -W ignore -m {} --name {} --log_level {} --num_jobs {}".format(
-        sys.executable,
-        THIS_PACKAGE,
-        module_name,
-        log_level,
-        num_jobs,
-    )
-    if package_name is not None:
-        cmd += f" --package {package_name}"
-    if recursive:
-        cmd += " --recursive"
-    if side_effect_modules:
-        cmd += " --side_effect_modules " + " ".join(side_effect_modules)
+    # Recursively build the mapping
+    module_deps_map = dict()
+    modules_to_check = {imported}
+    checked_modules = set()
+    tracked_module_root_pkg = module_name.partition(".")[0]
+    while modules_to_check:
+        next_modules_to_check = set()
+        for module_to_check in modules_to_check:
+
+            # Figure out all direct imports from this module
+            module_imports = _get_imports(module_to_check)
+            module_import_names = {mod.__name__ for mod in module_imports}
+            log.debug3(
+                "Full import names for [%s]: %s",
+                module_to_check.__name__,
+                module_import_names,
+            )
+
+            # Trim to just non-standard modules
+            non_std_module_names = _get_non_std_modules(module_import_names)
+            log.debug3("Non std module names: %s", non_std_module_names)
+            non_std_module_imports = [
+                mod for mod in module_imports if mod.__name__ in non_std_module_names
+            ]
+
+            module_deps_map[module_to_check.__name__] = non_std_module_names
+            log.debug2(
+                "Deps for [%s] -> %s",
+                module_to_check.__name__,
+                non_std_module_names,
+            )
+
+            # Add each of these modules to the next round of modules to check if
+            # it has not yet been checked
+            next_modules_to_check = next_modules_to_check.union(
+                {
+                    mod
+                    for mod in non_std_module_imports
+                    if (
+                        mod not in checked_modules
+                        and (
+                            include_transitive
+                            or mod.__name__.partition(".")[0] == tracked_module_root_pkg
+                        )
+                    )
+                }
+            )
+
+            # Mark this module as checked
+            checked_modules.add(module_to_check)
+
+        # Set the next iteration
+        log.debug3("Next modules to check: %s", next_modules_to_check)
+        modules_to_check = next_modules_to_check
+
+    log.debug3("Full module dep mapping: %s", module_deps_map)
+
+    # Determine all the modules we want the final answer for
+    output_mods = {module_name}
     if submodules:
-        cmd += " --submodules " + " ".join(submodules)
-    if track_import_stack:
-        cmd += " --track_import_stack"
-    if detect_transitive:
-        cmd += " --detect_transitive"
+        output_mods = output_mods.union(
+            {
+                mod
+                for mod in module_deps_map
+                if (
+                    (submodules is True and mod.startswith(module_name))
+                    or (submodules is not True and mod in submodules)
+                )
+            }
+        )
+    log.debug2("Output modules: %s", output_mods)
 
-    # Launch the process
-    log.debug3("Full Command: %s", cmd)
-    proc = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, env=env)
+    # Flatten each of the output mods' dependency lists
+    deps_out = {mod: _flatten_deps(mod, module_deps_map) for mod in output_mods}
+    log.debug("Raw output deps map: %s", deps_out)
+    if not track_import_stack:
+        deps_out = {mod: list(deps.keys()) for mod, deps in deps_out.items()}
+    return deps_out
 
-    # Wait for the result and parse it as json
-    result, _ = proc.communicate()
-    return json.loads(result)
+
+## Private #####################################################################
+
+
+def _get_dylib_dir():
+    """Differnet versions/builds of python manage different builtin libraries as
+    "builtins" versus extensions. As such, we need some heuristics to try to
+    find the base directory that holds shared objects from the standard library.
+    """
+    is_dylib = lambda x: x is not None and (x.endswith(".so") or x.endswith(".dylib"))
+    all_mod_paths = list(
+        filter(is_dylib, (getattr(mod, "__file__", "") for mod in sys.modules.values()))
+    )
+    # If there's any dylib found, return the parent directory
+    sample_dylib = None
+    if all_mod_paths:
+        sample_dylib = all_mod_paths[0]
+    else:  # pragma: no cover
+        # If not found with the above, look through libraries that are known to
+        # sometimes be packaged as compiled extensions
+        #
+        # NOTE: This code may be unnecessary, but it is intended to catch future
+        #   cases where the above does not yield results
+        #
+        # More names can be added here as needed
+        for lib_name in ["cmath"]:
+            lib = importlib.import_module(lib_name)
+            fname = getattr(lib, "__file__", None)
+            if is_dylib(fname):
+                sample_dylib = fname
+                break
+
+    if sample_dylib is not None:
+        return os.path.realpath(os.path.dirname(sample_dylib))
+
+    # If all else fails, we'll just return a sentinel string. This will fail to
+    # match in the below check for builtin modules
+    return "BADPATH"  # pragma: no cover
+
+
+# The path where global modules are found
+_std_lib_dir = os.path.realpath(os.path.dirname(os.__file__))
+_std_dylib_dir = _get_dylib_dir()
+
+
+def _mod_defined_in_init_file(mod: ModuleType) -> bool:
+    """Determine if the given module is defined in an __init__.py[c]"""
+    mod_file = getattr(mod, "__file__", None)
+    if mod_file is None:
+        return False
+    return os.path.splitext(os.path.basename(mod_file))[0] == "__init__"
+
+
+def _get_import_parent_path(mod_name: str) -> str:
+    """Get the parent directory of the given module"""
+    mod = sys.modules[mod_name]  # NOTE: Intentionally unsafe to raise if not there!
+
+    # Some standard libs have no __file__ attribute
+    file_path = getattr(mod, "__file__", None)
+    if file_path is None:
+        return _std_lib_dir
+
+    # If the module comes from an __init__, we need to pop two levels off
+    if _mod_defined_in_init_file(mod):
+        file_path = os.path.dirname(file_path)
+    parent_path = os.path.dirname(file_path)
+    return parent_path
+
+
+def _get_non_std_modules(mod_names: Union[Set[str], Dict[str, List[dict]]]) -> Set[str]:
+    """Take a snapshot of the non-standard modules currently imported"""
+    # Determine the names from the list that are non-standard
+    non_std_mods = {
+        mod_name
+        for mod_name in mod_names
+        if not mod_name.startswith("_")
+        and (
+            mod_name not in sys.modules
+            or _get_import_parent_path(mod_name) not in [_std_lib_dir, _std_dylib_dir]
+        )
+        and mod_name.partition(".")[0] != THIS_PACKAGE
+    }
+
+    # If this is a set, just return it directly
+    if isinstance(mod_names, (set, list)):
+        return non_std_mods
+
+    # If it's a dict, limit to the non standard names
+    return {
+        mod_name: mod_vals
+        for mod_name, mod_vals in mod_names.items()
+        if mod_name in non_std_mods
+    }
+
+
+def _get_value_col(dis_line: str) -> str:
+    loc = dis_line.find("(")
+    if loc >= 0:
+        return dis_line[loc + 1 : -1]
+    return ""
+
+
+def _figure_out_import(
+    mod: ModuleType,
+    dots: Optional[int],
+    import_name: Optional[str],
+    import_from: Optional[str],
+) -> ModuleType:
+    log.debug2("Figuring out import [%s/%s/%s]", dots, import_name, import_from)
+
+    # If there are no dots, look for candidate absolute imports
+    if not dots:
+        if import_name in sys.modules:
+            if import_from is not None:
+                candidate = f"{import_name}.{import_from}"
+                if candidate in sys.modules:
+                    log.debug3("Found [%s] in sys.modules", candidate)
+                    return sys.modules[candidate]
+            log.debug3("Found [%s] in sys.modules", import_name)
+            return sys.modules[import_name]
+
+    # Try simulating a relative import from a non-relative local
+    dots = dots or 1
+
+    # If there are dots, figure out the parent
+    parent_mod_name_parts = mod.__name__.split(".")
+    if dots > 1:
+        parent_dots = dots - 1 if _mod_defined_in_init_file(mod) else dots
+        root_mod_name = ".".join(parent_mod_name_parts[:-parent_dots])
+    else:
+        root_mod_name = mod.__name__
+    log.debug3("Parent mod name parts: %s", parent_mod_name_parts)
+    log.debug3("Num Dots: %d", dots)
+    log.debug3("Root mod name: %s", root_mod_name)
+    log.debug3("Module file: %s", getattr(mod, "__file__", None))
+    if not import_name:
+        import_name = root_mod_name
+    else:
+        import_name = f"{root_mod_name}.{import_name}"
+
+    # Try with the import_from attached. This might be a module name or a
+    # non-module attribute, so this might not work
+    if not import_name:
+        full_import_candidate = import_from
+    else:
+        full_import_candidate = f"{import_name}.{import_from}"
+    if full_import_candidate in sys.modules:
+        return sys.modules[full_import_candidate]
+
+    # If that didn't work, the from is an attribute, so just get the import name
+    return sys.modules.get(import_name)
+
+
+def _get_imports(mod: ModuleType) -> Set[ModuleType]:
+    """Get the list of import string from a module by parsing the module's
+    bytecode
+    """
+    log.debug2("Getting imports for %s", mod.__name__)
+    all_imports = set()
+
+    # Attempt to disassemble the byte code for this module. If the module has no
+    # code, we ignore it since it's most likely a c extension
+    try:
+        loader = mod.__loader__ or mod.__spec__.loader
+        mod_code = loader.get_code(mod.__name__)
+    except ImportError:
+        log.debug2("Could not get_code(%s)", mod.__name__)
+        return all_imports
+    except AttributeError:
+        log.warning("Couldn't find a loader for %s!", mod.__name__)
+        return all_imports
+    if mod_code is None:
+        log.debug2("No code object found for %s", mod.__name__)
+        return all_imports
+    bcode = dis.Bytecode(mod_code)
+
+    # Parse all bytecode lines
+    current_dots = None
+    current_import_name = None
+    current_import_from = None
+    open_import = False
+    log.debug4("Byte Code:")
+    for line in bcode.dis().split("\n"):
+        log.debug4(line)
+        line_val = _get_value_col(line)
+        if "LOAD_CONST" in line:
+            if line_val.isnumeric():
+                current_dots = int(line_val)
+        elif "IMPORT_NAME" in line:
+            open_import = True
+            if line_val.isnumeric():
+                current_dots = int(line_val)
+            else:
+                current_import_name = line_val
+        elif "IMPORT_FROM" in line:
+            open_import = True
+            current_import_from = line_val
+        else:
+            # This closes an import, so figure out what the module is that is
+            # being imported!
+            if open_import:
+                import_mod = _figure_out_import(
+                    mod, current_dots, current_import_name, current_import_from
+                )
+                if import_mod is not None:
+                    log.debug2("Adding import module [%s]", import_mod.__name__)
+                    all_imports.add(import_mod)
+
+            # If this is a STORE_NAME, subsequent "from" statements may use the
+            # same dots and name
+            if "STORE_NAME" not in line:
+                current_dots = None
+                current_import_name = None
+            open_import = False
+            current_import_from = None
+
+    # If there's an open import at the end, close it
+    if open_import:
+        import_mod = _figure_out_import(
+            mod, current_dots, current_import_name, current_import_from
+        )
+        if import_mod is not None:
+            log.debug2("Adding import module [%s]", import_mod.__name__)
+            all_imports.add(import_mod)
+
+    return all_imports
+
+
+def _flatten_deps(
+    module_name: str,
+    module_deps_map: Dict[str, List[str]],
+) -> Dict[str, List[str]]:
+    """Flatten the names of all modules that the target module depends on"""
+    all_deps = {}
+    mods_to_check = {module_name: []}
+    while mods_to_check:
+        next_mods_to_check = {}
+        for mod_to_check, parent_path in mods_to_check.items():
+            mod_path = parent_path + [mod_to_check]
+            mod_deps = set(module_deps_map.get(mod_to_check, []))
+            log.debug4("Mod deps for %s: %s", mod_to_check, mod_deps)
+            new_mods = mod_deps - set(all_deps.keys())
+            next_mods_to_check.update({new_mod: mod_path for new_mod in new_mods})
+            for mod_dep in mod_deps:
+                all_deps.setdefault(mod_dep, []).append(mod_path)
+        log.debug3("Next mods to check: %s", next_mods_to_check)
+        mods_to_check = next_mods_to_check
+    mod_base_name = module_name.partition(".")[0]
+    flat_base_deps = {}
+    for dep, dep_sources in all_deps.items():
+        if not dep.startswith(mod_base_name):
+            # Truncate the dep_sources entries and trim to avoid duplicates
+            dep_root_mod_name = dep.partition(".")[0]
+            flat_dep_sources = flat_base_deps.setdefault(dep_root_mod_name, [])
+            for dep_source in dep_sources:
+                flat_dep_source = dep_source
+                if dep_root_mod_name in dep_source:
+                    flat_dep_source = dep_source[: dep_source.index(dep_root_mod_name)]
+                if flat_dep_source not in flat_dep_sources:
+                    flat_dep_sources.append(flat_dep_source)
+    return flat_base_deps
