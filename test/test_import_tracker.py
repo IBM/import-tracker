@@ -61,9 +61,7 @@ def test_track_module_recursive():
     NOTE: The num_jobs simply exercises that code as there's no real way to
         validate the parallelism
     """
-    sample_lib_mapping = import_tracker.track_module(
-        "sample_lib", recursive=True, num_jobs=2
-    )
+    sample_lib_mapping = import_tracker.track_module("sample_lib", submodules=True)
     assert sample_lib_mapping == {
         "sample_lib": sorted(["conditional_deps", "alog", "yaml"]),
         "sample_lib.submod1": ["conditional_deps"],
@@ -73,19 +71,10 @@ def test_track_module_recursive():
     }
 
 
-def test_track_module_with_log_level():
-    """Test that a log level can be given to track_module"""
-    sample_lib_mapping = import_tracker.track_module(
-        "sample_lib.submod1", log_level="error"
-    )
-    assert sample_lib_mapping == {"sample_lib.submod1": ["conditional_deps"]}
-
-
 def test_track_module_with_limited_submodules():
     """Test that the submodules arg can be passed through"""
     sample_lib_mapping = import_tracker.track_module(
         "sample_lib",
-        recursive=True,
         submodules=["sample_lib.submod1"],
     )
     assert sample_lib_mapping == {
