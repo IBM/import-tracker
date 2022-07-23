@@ -153,8 +153,14 @@ def track_module(
         )
     log.debug2("Output modules: %s", output_mods)
 
+    # Add parent direct deps to the module deps map
+    parent_direct_deps = _add_parent_direct_deps(module_deps_map)
+
     # Flatten each of the output mods' dependency lists
-    flattened_deps = {mod: _flatten_deps(mod, module_deps_map) for mod in output_mods}
+    flattened_deps = {
+        mod: _flatten_deps(mod, module_deps_map, parent_direct_deps)
+        for mod in output_mods
+    }
     log.debug("Raw output deps map: %s", flattened_deps)
 
     # If detecting transitive deps, look through the stacks and mark each dep as
@@ -417,25 +423,80 @@ def _get_imports(mod: ModuleType) -> Set[ModuleType]:
     return all_imports
 
 
+def _add_parent_direct_deps(
+    module_deps_map: Dict[str, List[str]]
+) -> Dict[str, Dict[str, List[str]]]:
+    """Augment the dependencies of each module in the module deps map with any
+    third-party dependencies that are directly imported by parent modules.
+    """
+
+    parent_direct_deps = {}
+    for mod_name, mod_deps in module_deps_map.items():
+
+        # Look through all parent modules of module_name and aggregate all
+        # third-party deps that are directly used by those modules
+        mod_base_name = mod_name.partition(".")[0]
+        mod_name_parts = mod_name.split(".")
+        for i in range(1, len(mod_name_parts)):
+            parent_mod_name = ".".join(mod_name_parts[:i])
+            parent_deps = module_deps_map.get(parent_mod_name, {})
+            for dep in parent_deps:
+                if not dep.startswith(mod_base_name) and dep not in mod_deps:
+                    log.debug3(
+                        "Adding direct-dependency of parent mod [%s]: %s",
+                        parent_mod_name,
+                        dep,
+                    )
+                    mod_deps.add(dep)
+                    parent_direct_deps.setdefault(mod_name, {}).setdefault(
+                        parent_mod_name, set()
+                    ).add(dep)
+    log.debug3("Parent direct dep map: %s", parent_direct_deps)
+    return parent_direct_deps
+
+
 def _flatten_deps(
     module_name: str,
     module_deps_map: Dict[str, List[str]],
+    parent_direct_deps: Dict[str, Dict[str, List[str]]],
 ) -> Dict[str, List[str]]:
     """Flatten the names of all modules that the target module depends on"""
+
+    # Look through all modules that are directly required by this target module.
+    # This only looks at the leaves, so if the module depends on foo.bar.baz,
+    # only the deps for foo.bar.baz will be incluced and not foo.bar.buz or
+    # foo.biz.
     all_deps = {}
     mods_to_check = {module_name: []}
     while mods_to_check:
         next_mods_to_check = {}
         for mod_to_check, parent_path in mods_to_check.items():
+            mod_parents_direct_deps = parent_direct_deps.get(mod_to_check, {})
             mod_path = parent_path + [mod_to_check]
             mod_deps = set(module_deps_map.get(mod_to_check, []))
             log.debug4("Mod deps for %s: %s", mod_to_check, mod_deps)
             new_mods = mod_deps - set(all_deps.keys())
             next_mods_to_check.update({new_mod: mod_path for new_mod in new_mods})
             for mod_dep in mod_deps:
-                all_deps.setdefault(mod_dep, []).append(mod_path)
+                # If this is a parent direct dep, add the parent to the path
+                mod_dep_direct_parents = []
+                for (
+                    mod_parent,
+                    mod_parent_direct_deps,
+                ) in mod_parents_direct_deps.items():
+                    if mod_dep in mod_parent_direct_deps:
+                        mod_dep_direct_parents.append(mod_parent)
+                if mod_dep_direct_parents:
+                    for mod_dep_direct_parent in mod_dep_direct_parents:
+                        all_deps.setdefault(mod_dep, []).append(
+                            [mod_dep_direct_parent] + mod_path
+                        )
+                else:
+                    all_deps.setdefault(mod_dep, []).append(mod_path)
         log.debug3("Next mods to check: %s", next_mods_to_check)
         mods_to_check = next_mods_to_check
+
+    # Create the flattened dependencies with the source lists for each
     mod_base_name = module_name.partition(".")[0]
     flat_base_deps = {}
     for dep, dep_sources in all_deps.items():

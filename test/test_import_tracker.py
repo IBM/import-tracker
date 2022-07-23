@@ -80,3 +80,34 @@ def test_track_module_with_limited_submodules():
         "sample_lib": sorted(["conditional_deps", "alog", "yaml"]),
         "sample_lib.submod1": ["conditional_deps"],
     }
+
+
+def test_sibling_import():
+    """Make sure that a library with a submodule that imports a sibling
+    submodule properly tracks dependencies through the sibling
+    """
+    lib_mapping = import_tracker.track_module(
+        "inter_mod_deps",
+        submodules=True,
+    )
+    assert (set(lib_mapping["inter_mod_deps.submod1"])) == {"alog"}
+    assert (set(lib_mapping["inter_mod_deps.submod2"])) == {
+        "alog",
+        "yaml",
+    }
+    assert (set(lib_mapping["inter_mod_deps.submod2.foo"])) == {
+        "yaml",
+    }
+    assert (set(lib_mapping["inter_mod_deps.submod2.bar"])) == {
+        "yaml",
+    }
+    assert (set(lib_mapping["inter_mod_deps.submod3"])) == {
+        "alog",
+        "yaml",
+    }
+    assert (set(lib_mapping["inter_mod_deps.submod4"])) == {
+        "yaml",
+    }
+    assert (set(lib_mapping["inter_mod_deps.submod5"])) == {
+        "yaml",
+    }

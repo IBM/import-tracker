@@ -129,16 +129,6 @@ def parse_requirements(
         common_intersection = set()
     log.debug3("Raw common intersection: %s", common_intersection)
 
-    # Add direct dependencies of all parent modules to the non_extra_union
-    for module_name, imports_info in library_import_mapping.items():
-        if module_name not in extras_modules:
-            direct_deps = {
-                requirement_name_map[dep_name]
-                for dep_name, dep_info in imports_info.items()
-                if dep_info.get("type") == TYPE_DIRECT
-            }
-            non_extra_union = non_extra_union.union(direct_deps)
-
     common_imports = common_intersection.union(non_extra_union)
     log.debug3("Common intersection: %s", common_intersection)
     log.debug3("Non extra union: %s", non_extra_union)
