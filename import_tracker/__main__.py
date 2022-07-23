@@ -65,14 +65,21 @@ def main():
         help="Store the stack trace of imports belonging to the tracked module",
     )
     parser.add_argument(
-        "--include_transitive",
-        "-r",
+        "--full_depth",
+        "-f",
         action="store_true",
         default=False,
         help="Include transitive third-party deps brought in by direct third-party deps",
     )
     parser.add_argument(
-        "--log-level",
+        "--detect_transitive",
+        "-d",
+        action="store_true",
+        default=False,
+        help="Detect whether each dependency is 'direct' or 'transitive'",
+    )
+    parser.add_argument(
+        "--log_level",
         "-l",
         default=os.environ.get("LOG_LEVEL", "warning"),
         help="Default log level",
@@ -100,7 +107,8 @@ def main():
                 package_name=args.package,
                 submodules=submodules,
                 track_import_stack=args.track_import_stack,
-                include_transitive=args.include_transitive,
+                full_depth=args.full_depth,
+                detect_transitive=args.detect_transitive,
             ),
             indent=args.indent,
         )

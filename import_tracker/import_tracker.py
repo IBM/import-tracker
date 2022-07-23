@@ -11,7 +11,7 @@ import os
 import sys
 
 # Local
-from .constants import THIS_PACKAGE
+from .constants import THIS_PACKAGE, TYPE_DIRECT, TYPE_TRANSITIVE
 from .log import log
 
 ## Public ######################################################################
@@ -22,7 +22,8 @@ def track_module(
     package_name: Optional[str] = None,
     submodules: Union[List[str], bool] = False,
     track_import_stack: bool = False,
-    include_transitive: bool = False,
+    full_depth: bool = False,
+    detect_transitive: bool = False,
 ) -> dict:
     """Track the dependencies of a single python module
 
@@ -39,10 +40,12 @@ def track_module(
         track_import_stack:  bool
             Store the stacks of modules causing each dependency of each tracked
             module for debugging purposes.
-        include_transitive:  bool
+        full_depth:  bool
             Include transitive dependencies of the third party dependencies that
             are direct dependencies of modules within the target module's parent
             library.
+        detect_transitive:  bool
+            Detect whether each dependency is 'direct' or 'transitive'
 
     Returns:
         import_mapping:  dict
@@ -55,12 +58,13 @@ def track_module(
 
     # Import the target module
     imported = importlib.import_module(module_name, package=package_name)
+    full_module_name = imported.__name__
 
     # Recursively build the mapping
     module_deps_map = dict()
     modules_to_check = {imported}
     checked_modules = set()
-    tracked_module_root_pkg = module_name.partition(".")[0]
+    tracked_module_root_pkg = full_module_name.partition(".")[0]
     while modules_to_check:
         next_modules_to_check = set()
         for module_to_check in modules_to_check:
@@ -97,12 +101,32 @@ def track_module(
                     if (
                         mod not in checked_modules
                         and (
-                            include_transitive
+                            full_depth
                             or mod.__name__.partition(".")[0] == tracked_module_root_pkg
                         )
                     )
                 }
             )
+
+            # Also check modules with intermediate names
+            parent_mods = set()
+            for mod in next_modules_to_check:
+                mod_name_parts = mod.__name__.split(".")
+                for parent_mod_name in [
+                    ".".join(mod_name_parts[: i + 1])
+                    for i in range(len(mod_name_parts))
+                ]:
+                    parent_mod = sys.modules.get(parent_mod_name)
+                    if parent_mod is None:
+                        log.warning(
+                            "Could not find parent module %s of %s",
+                            parent_mod_name,
+                            mod.__name__,
+                        )
+                        continue
+                    if parent_mod not in checked_modules:
+                        parent_mods.add(parent_mod)
+            next_modules_to_check = next_modules_to_check.union(parent_mods)
 
             # Mark this module as checked
             checked_modules.add(module_to_check)
@@ -114,14 +138,14 @@ def track_module(
     log.debug3("Full module dep mapping: %s", module_deps_map)
 
     # Determine all the modules we want the final answer for
-    output_mods = {module_name}
+    output_mods = {full_module_name}
     if submodules:
         output_mods = output_mods.union(
             {
                 mod
                 for mod in module_deps_map
                 if (
-                    (submodules is True and mod.startswith(module_name))
+                    (submodules is True and mod.startswith(full_module_name))
                     or (submodules is not True and mod in submodules)
                 )
             }
@@ -129,10 +153,36 @@ def track_module(
     log.debug2("Output modules: %s", output_mods)
 
     # Flatten each of the output mods' dependency lists
-    deps_out = {mod: _flatten_deps(mod, module_deps_map) for mod in output_mods}
-    log.debug("Raw output deps map: %s", deps_out)
-    if not track_import_stack:
-        deps_out = {mod: list(deps.keys()) for mod, deps in deps_out.items()}
+    flattened_deps = {mod: _flatten_deps(mod, module_deps_map) for mod in output_mods}
+    log.debug("Raw output deps map: %s", flattened_deps)
+
+    # If detecting transitive deps, look through the stacks and mark each dep as
+    # transitive or direct
+    if not detect_transitive and not track_import_stack:
+        deps_out = {
+            mod: list(sorted(deps.keys())) for mod, deps in flattened_deps.items()
+        }
+    else:
+        deps_out = {}
+
+    if detect_transitive:
+        for mod, deps in flattened_deps.items():
+            for dep_name, dep_stacks in deps.items():
+                deps_out.setdefault(mod, {}).setdefault(dep_name, {})["type"] = (
+                    TYPE_DIRECT
+                    if any(len(dep_stack) == 1 for dep_stack in dep_stacks)
+                    else TYPE_TRANSITIVE
+                )
+
+    # If tracking import stacks, move them to the "stack" key in the output
+    if track_import_stack:
+        for mod, deps in flattened_deps.items():
+            for dep_name, dep_stacks in deps.items():
+                deps_out.setdefault(mod, {}).setdefault(dep_name, {})[
+                    "stack"
+                ] = dep_stacks
+
+    log.debug("Final output: %s", deps_out)
     return deps_out
 
 
