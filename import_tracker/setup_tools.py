@@ -11,7 +11,7 @@ import re
 import sys
 
 # Local
-from .constants import THIS_PACKAGE, TYPE_DIRECT
+from .constants import TYPE_DIRECT
 from .import_tracker import track_module
 from .log import log
 
@@ -66,7 +66,7 @@ def parse_requirements(
     # Get the set of required modules for each of the listed extras modules
     library_import_mapping = track_module(
         library_name,
-        recursive=True,
+        submodules=True,
         detect_transitive=True,
         **kwargs,
     )
@@ -124,6 +124,10 @@ def parse_requirements(
             if parent is None:
                 non_extra_union = non_extra_union.union(import_set)
                 break
+    common_intersection = common_intersection or set()
+    if len(extras_modules) == 1:
+        common_intersection = set()
+    log.debug3("Raw common intersection: %s", common_intersection)
 
     # Add direct dependencies of all parent modules to the non_extra_union
     for module_name, imports_info in library_import_mapping.items():
@@ -177,7 +181,7 @@ def parse_requirements(
     standardized_requirements = {
         key.replace("-", "_"): val for key, val in requirements.items()
     }
-    return _map_requirements(standardized_requirements, common_imports), {
+    return sorted(_map_requirements(standardized_requirements, common_imports)), {
         set_name: _map_requirements(standardized_requirements, import_set)
         for set_name, import_set in extras_require_sets.items()
     }

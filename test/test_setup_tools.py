@@ -133,7 +133,6 @@ def test_parse_requirements_with_side_effects():
     parse_requirements(
         requirements=sample_lib_requirements,
         library_name="side_effects",
-        side_effect_modules=["side_effects.global_thing"],
     )
 
 
@@ -156,7 +155,7 @@ def test_single_extras_module():
         "single_extra",
         ["single_extra.extra"],
     )
-    assert requirements == ["alchemy-logging"]
+    assert requirements == sorted(["alchemy-logging"])
     assert extras_require == {
         "all": sorted(["alchemy-logging", "PyYaml"]),
         "single_extra.extra": ["PyYaml"],
@@ -188,9 +187,9 @@ def test_nested_deps():
         "direct_dep_nested",
         ["direct_dep_nested.nested", "direct_dep_nested.nested2"],
     )
-    assert requirements == sorted(["alchemy-logging", "sample_lib"])
+    assert requirements == sorted(["sample_lib"])
     assert extras_require == {
         "all": sorted(["sample_lib", "PyYaml", "alchemy-logging"]),
         "direct_dep_nested.nested": sorted(["PyYaml"]),
-        "direct_dep_nested.nested2": sorted([]),
+        "direct_dep_nested.nested2": sorted(["alchemy-logging"]),
     }
