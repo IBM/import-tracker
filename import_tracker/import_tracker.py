@@ -57,6 +57,7 @@ def track_module(
     """
 
     # Import the target module
+    log.debug("Importing %s.%s", package_name, module_name)
     imported = importlib.import_module(module_name, package=package_name)
     full_module_name = imported.__name__
 
@@ -311,11 +312,14 @@ def _figure_out_import(
 
     # If there are dots, figure out the parent
     parent_mod_name_parts = mod.__name__.split(".")
+    defined_in_init = _mod_defined_in_init_file(mod)
     if dots > 1:
-        parent_dots = dots - 1 if _mod_defined_in_init_file(mod) else dots
+        parent_dots = dots - 1 if defined_in_init else dots
         root_mod_name = ".".join(parent_mod_name_parts[:-parent_dots])
-    else:
+    elif defined_in_init:
         root_mod_name = mod.__name__
+    else:
+        root_mod_name = ".".join(parent_mod_name_parts[:-1])
     log.debug3("Parent mod name parts: %s", parent_mod_name_parts)
     log.debug3("Num Dots: %d", dots)
     log.debug3("Root mod name: %s", root_mod_name)
