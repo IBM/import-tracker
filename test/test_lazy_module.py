@@ -10,7 +10,6 @@ import pytest
 
 # Local
 from import_tracker.lazy_module import LazyModule
-from test.helpers import reset_sys_modules
 
 
 def test_lazy_module_valid_import():

@@ -13,10 +13,8 @@ import sys
 import pytest
 
 # Local
-from .helpers import reset_sys_modules
 from import_tracker import constants
 from import_tracker.__main__ import main
-import import_tracker
 
 ## Helpers #####################################################################
 

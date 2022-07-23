@@ -15,7 +15,6 @@ import pytest
 
 # Local
 from import_tracker.lazy_import_errors import _LazyErrorMetaFinder
-from test.helpers import reset_sys_modules
 import import_tracker
 
 

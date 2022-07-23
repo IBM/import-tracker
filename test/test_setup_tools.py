@@ -10,7 +10,6 @@ import tempfile
 import pytest
 
 # Local
-from .helpers import configure_logging
 from import_tracker.setup_tools import parse_requirements
 
 sample_lib_requirements = [
