@@ -18,9 +18,6 @@ from import_tracker.log import log
 def configure_logging():
     """Fixture that configures logging from the env. It is auto-used, so if
     imported, it will automatically configure for each test.
-
-    NOTE: The import of alog is inside the function since alog is used as a
-        sample package for lazy importing in some tests
     """
     logging.basicConfig()
     log.root.setLevel(getattr(logging, os.environ.get("LOG_LEVEL", "warning").upper()))
