@@ -100,7 +100,7 @@ def test_sibling_import(capsys):
     """Make sure that a library with a submodule that imports a sibling
     submodule properly tracks dependencies through the sibling
     """
-    with cli_args("--name", "inter_mod_deps", "--recursive"):
+    with cli_args("--name", "inter_mod_deps", "--submodules"):
         main()
     captured = capsys.readouterr()
     assert captured.out
@@ -140,36 +140,6 @@ def test_lib_with_lazy_imports(capsys):
     assert "lazy_import_errors" in parsed_out
 
 
-def test_lib_with_side_effect_imports():
-    """Make sure that a library with import-time side effects works when
-    specifying the --side_effect_modules argument and fails without it
-    """
-
-    # Expect failure without the argument
-    with cli_args("--name", "side_effects.mod"):
-        with pytest.raises(AssertionError):
-            main()
-
-    # Expect success with the argument
-    with cli_args(
-        "--name",
-        "side_effects.mod",
-        "--side_effect_modules",
-        "side_effects.global_thing",
-    ):
-        main()
-
-    # Ensure that the argument is passed recursively
-    with cli_args(
-        "--name",
-        "side_effects",
-        "--side_effect_modules",
-        "side_effects.global_thing",
-        "--recursive",
-    ):
-        main()
-
-
 def test_with_limited_submodules(capsys):
     """Make sure that when a list of submodules is given, the recursion only
     applies to those submodules.
@@ -177,7 +147,6 @@ def test_with_limited_submodules(capsys):
     with cli_args(
         "--name",
         "sample_lib",
-        "--recursive",
         "--submodules",
         "sample_lib.submod1",
     ):
@@ -238,7 +207,7 @@ def test_detect_transitive_with_stack_traces(capsys):
     with cli_args(
         "--name",
         "direct_dep_ambiguous",
-        "--recursive",
+        "--submodules",
         "--detect_transitive",
         "--track_import_stack",
     ):
@@ -328,7 +297,7 @@ def test_detect_transitive_with_nested_module(capsys):
     with cli_args(
         "--name",
         "direct_dep_nested",
-        "--recursive",
+        "--submodules",
         "--detect_transitive",
     ):
         main()
@@ -366,7 +335,7 @@ def test_lazy_module_trigger(capsys):
     """Make sure that a sub-module which holds LazyModule attrs does not
     incorrectly trigger their imports when run through import_tracker.
     """
-    with cli_args("--name", "lazy_module", "--recursive"):
+    with cli_args("--name", "lazy_module", "--submodules"):
         main()
     captured = capsys.readouterr()
     assert captured.out
