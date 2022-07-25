@@ -353,6 +353,28 @@ def test_all_import_types():
     }
 
 
+def test_deep_siblings():
+    """This test exercises the sample library that was the main reason for the
+    full refactor in the first place. The library is constructed such that there
+    are sub-directories (blocks and workflows) where individual sub-modules
+    within workflows may depend on a subset of the sub-modules within blocks. In
+    this case, we do not want the entire dependency set of blocks to be
+    attributed to a workflows module, but rather we want just the dependencies
+    of the block modules that it needs.
+    """
+    assert track_module("deep_siblings", submodules=True) == {
+        "deep_siblings": ["alog", "yaml"],
+        "deep_siblings.blocks": ["alog", "yaml"],
+        "deep_siblings.blocks.foo_type": ["yaml"],
+        "deep_siblings.blocks.foo_type.foo": ["yaml"],
+        "deep_siblings.blocks.bar_type": ["alog"],
+        "deep_siblings.blocks.bar_type.bar": ["alog"],
+        "deep_siblings.workflows": ["yaml"],
+        "deep_siblings.workflows.foo_type": ["yaml"],
+        "deep_siblings.workflows.foo_type.foo": ["yaml"],
+    }
+
+
 ## Details #####################################################################
 
 
