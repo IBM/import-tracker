@@ -235,6 +235,9 @@ def _get_dylib_dir():
 # The path where global modules are found
 _std_lib_dir = os.path.realpath(os.path.dirname(os.__file__))
 _std_dylib_dir = _get_dylib_dir()
+_known_std_pkgs = [
+    "collections",
+]
 
 
 def _mod_defined_in_init_file(mod: ModuleType) -> bool:
@@ -261,19 +264,25 @@ def _get_import_parent_path(mod_name: str) -> str:
     return parent_path
 
 
-def _get_non_std_modules(mod_names: Union[Set[str], Dict[str, List[dict]]]) -> Set[str]:
-    """Take a snapshot of the non-standard modules currently imported"""
-    # Determine the names from the list that are non-standard
-    non_std_mods = {
-        mod_name
-        for mod_name in mod_names
-        if not mod_name.startswith("_")
+def _is_third_party(mod_name: str) -> bool:
+    """Detect whether the given module is a third party (non-standard and not
+    import_tracker)"""
+    mod_pkg = mod_name.partition(".")[0]
+    return (
+        not mod_name.startswith("_")
         and (
             mod_name not in sys.modules
             or _get_import_parent_path(mod_name) not in [_std_lib_dir, _std_dylib_dir]
         )
-        and mod_name.partition(".")[0] != THIS_PACKAGE
-    }
+        and mod_pkg != THIS_PACKAGE
+        and mod_pkg not in _known_std_pkgs
+    )
+
+
+def _get_non_std_modules(mod_names: Union[Set[str], Dict[str, List[dict]]]) -> Set[str]:
+    """Take a snapshot of the non-standard modules currently imported"""
+    # Determine the names from the list that are non-standard
+    non_std_mods = {mod_name for mod_name in mod_names if _is_third_party(mod_name)}
 
     # If this is a set, just return it directly
     if isinstance(mod_names, (set, list)):
