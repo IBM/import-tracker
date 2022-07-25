@@ -402,14 +402,15 @@ def _get_imports(mod: ModuleType) -> Set[ModuleType]:
             open_import = False
             current_import_from = None
 
-    # If there's an open import at the end, close it
-    if open_import:
-        import_mod = _figure_out_import(
-            mod, current_dots, current_import_name, current_import_from
-        )
-        if import_mod is not None:
-            log.debug2("Adding import module [%s]", import_mod.__name__)
-            all_imports.add(import_mod)
+    # To the best of my knowledge, all bytecode will end with something other
+    # than an import, even if an import is the last line in the file (e.g.
+    # STORE_NAME). If this somehow proves to be untrue, please file a bug!
+    assert not open_import, "Found an unclosed import in {}! {}/{}/{}".format(
+        mod.__name__,
+        current_dots,
+        current_import_name,
+        current_import_from,
+    )
 
     return all_imports
 
