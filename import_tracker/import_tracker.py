@@ -471,30 +471,48 @@ def _flatten_deps(
     while mods_to_check:
         next_mods_to_check = {}
         for mod_to_check, parent_path in mods_to_check.items():
+            log.debug4("Checking mod %s", mod_to_check)
             mod_parents_direct_deps = parent_direct_deps.get(mod_to_check, {})
             mod_path = parent_path + [mod_to_check]
             mod_deps = set(module_deps_map.get(mod_to_check, []))
-            log.debug4("Mod deps for %s: %s", mod_to_check, mod_deps)
+            log.debug4(
+                "Mod deps for %s at path %s: %s", mod_to_check, mod_path, mod_deps
+            )
             new_mods = mod_deps - set(all_deps.keys())
             next_mods_to_check.update({new_mod: mod_path for new_mod in new_mods})
             for mod_dep in mod_deps:
-                # If this is a parent direct dep, add the parent to the path
-                mod_dep_direct_parents = []
+                # If this is a parent direct dep, and the stack for this parent
+                # is not already present in the dep stacks for this dependency,
+                # add the parent to the path
+                mod_dep_direct_parents = {}
                 for (
                     mod_parent,
                     mod_parent_direct_deps,
                 ) in mod_parents_direct_deps.items():
                     if mod_dep in mod_parent_direct_deps:
-                        mod_dep_direct_parents.append(mod_parent)
-                if mod_dep_direct_parents:
-                    for mod_dep_direct_parent in mod_dep_direct_parents:
-                        all_deps.setdefault(mod_dep, []).append(
-                            [mod_dep_direct_parent] + mod_path
+                        log.debug4(
+                            "Found direct parent dep for [%s] from parent [%s] and dep [%s]",
+                            mod_to_check,
+                            mod_parent,
+                            mod_dep,
                         )
+                        mod_dep_direct_parents[mod_parent] = [
+                            mod_parent
+                        ] in all_deps.get(mod_dep, [])
+                if mod_dep_direct_parents:
+                    for (
+                        mod_dep_direct_parent,
+                        already_present,
+                    ) in mod_dep_direct_parents.items():
+                        if not already_present:
+                            all_deps.setdefault(mod_dep, []).append(
+                                [mod_dep_direct_parent] + mod_path
+                            )
                 else:
                     all_deps.setdefault(mod_dep, []).append(mod_path)
         log.debug3("Next mods to check: %s", next_mods_to_check)
         mods_to_check = next_mods_to_check
+    log.debug4("All deps: %s", all_deps)
 
     # Create the flattened dependencies with the source lists for each
     mod_base_name = module_name.partition(".")[0]
@@ -505,6 +523,7 @@ def _flatten_deps(
             dep_root_mod_name = dep.partition(".")[0]
             flat_dep_sources = flat_base_deps.setdefault(dep_root_mod_name, [])
             for dep_source in dep_sources:
+                log.debug4("Considering dep source list for %s: %s", dep, dep_source)
                 flat_dep_source = dep_source
                 if dep_root_mod_name in dep_source:
                     flat_dep_source = dep_source[: dep_source.index(dep_root_mod_name)]

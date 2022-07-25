@@ -111,3 +111,40 @@ def test_sibling_import():
     assert (set(lib_mapping["inter_mod_deps.submod5"])) == {
         "yaml",
     }
+
+
+def test_import_stack_tracking():
+    """Make sure that tracking the import stack works as expected"""
+    lib_mapping = import_tracker.track_module(
+        "inter_mod_deps",
+        submodules=True,
+        track_import_stack=True,
+    )
+
+    assert set(lib_mapping.keys()) == {
+        "inter_mod_deps",
+        "inter_mod_deps.submod1",
+        "inter_mod_deps.submod2",
+        "inter_mod_deps.submod2.foo",
+        "inter_mod_deps.submod2.bar",
+        "inter_mod_deps.submod3",
+        "inter_mod_deps.submod4",
+        "inter_mod_deps.submod5",
+    }
+
+    # Check one of the stacks to make sure it's correct
+    assert lib_mapping["inter_mod_deps.submod2"] == {
+        "alog": {
+            "stack": [
+                [
+                    "inter_mod_deps.submod2",
+                    "inter_mod_deps.submod1",
+                ]
+            ]
+        },
+        "yaml": {
+            "stack": [
+                ["inter_mod_deps.submod2"],
+            ]
+        },
+    }
