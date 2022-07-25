@@ -2,18 +2,8 @@
 Tests for the import_tracker module's public API
 """
 
-# Standard
-from types import ModuleType
-import json
-import os
-import sys
-import tempfile
-import warnings
-
-# Third Party
-import pytest
-
 # Local
+from import_tracker import constants
 import import_tracker
 
 ## Package API #################################################################
@@ -148,3 +138,106 @@ def test_import_stack_tracking():
             ]
         },
     }
+
+
+def test_detect_transitive_no_stack_traces():
+    """Test that --detect_transitive works as expected"""
+    lib_mapping = import_tracker.track_module(
+        "direct_dep_ambiguous",
+        submodules=True,
+        detect_transitive=True,
+    )
+    assert lib_mapping == {
+        "direct_dep_ambiguous": {
+            "alog": {
+                "type": constants.TYPE_DIRECT,
+            },
+            "yaml": {
+                "type": constants.TYPE_TRANSITIVE,
+            },
+        },
+        "direct_dep_ambiguous.foo": {
+            "alog": {
+                "type": constants.TYPE_DIRECT,
+            },
+            "yaml": {
+                "type": constants.TYPE_DIRECT,
+            },
+        },
+        "direct_dep_ambiguous.bar": {
+            "alog": {
+                "type": constants.TYPE_TRANSITIVE,
+            },
+        },
+    }
+
+
+def test_detect_transitive_with_stack_traces():
+    """Test that detect_transitive + track_import_stack works as expected"""
+    lib_mapping = import_tracker.track_module(
+        "direct_dep_ambiguous",
+        submodules=True,
+        detect_transitive=True,
+        track_import_stack=True,
+    )
+    assert lib_mapping == {
+        "direct_dep_ambiguous": {
+            "alog": {
+                "stack": [
+                    [
+                        "direct_dep_ambiguous",
+                    ],
+                    [
+                        "direct_dep_ambiguous",
+                        "direct_dep_ambiguous.foo",
+                    ],
+                ],
+                "type": "direct",
+            },
+            "yaml": {
+                "stack": [
+                    [
+                        "direct_dep_ambiguous",
+                        "direct_dep_ambiguous.foo",
+                    ],
+                ],
+                "type": "transitive",
+            },
+        },
+        "direct_dep_ambiguous.bar": {
+            "alog": {
+                "stack": [
+                    [
+                        "direct_dep_ambiguous",
+                        "direct_dep_ambiguous.bar",
+                    ],
+                ],
+                "type": "transitive",
+            },
+        },
+        "direct_dep_ambiguous.foo": {
+            "alog": {
+                "stack": [
+                    ["direct_dep_ambiguous.foo"],
+                ],
+                "type": "direct",
+            },
+            "yaml": {
+                "stack": [
+                    ["direct_dep_ambiguous.foo"],
+                ],
+                "type": "direct",
+            },
+        },
+    }
+
+
+def test_with_limited_submodules():
+    """Make sure that when a list of submodules is given, the recursion only
+    applies to those submodules.
+    """
+    lib_mapping = import_tracker.track_module(
+        "sample_lib",
+        submodules=["sample_lib.submod1"],
+    )
+    assert set(lib_mapping.keys()) == {"sample_lib", "sample_lib.submod1"}
