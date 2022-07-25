@@ -316,3 +316,29 @@ def test_lazy_module_trigger():
         "lazy_module.lazy_deps": [],
         "lazy_module.mod": [],
     }
+
+
+def test_all_import_types():
+    """Make sure that all different import statement types are covered"""
+    assert track_module("all_import_types", submodules=True) == {
+        "all_import_types": [
+            "alog",
+            "inter_mod_deps",
+            "sample_lib",
+        ],
+        "all_import_types.sub_module1": [
+            "alog",
+            "inter_mod_deps",
+            "sample_lib",
+        ],
+        "all_import_types.sub_module2": [
+            "alog",
+            "inter_mod_deps",
+            "sample_lib",
+        ],
+        "all_import_types.sub_module3": [
+            "alog",
+            "inter_mod_deps",
+            "sample_lib",
+        ],
+    }
