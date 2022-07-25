@@ -4,7 +4,7 @@ through import statements
 """
 # Standard
 from types import ModuleType
-from typing import Dict, List, Optional, Set, Union
+from typing import Dict, Iterable, List, Optional, Set, Union
 import dis
 import importlib
 import os
@@ -279,21 +279,10 @@ def _is_third_party(mod_name: str) -> bool:
     )
 
 
-def _get_non_std_modules(mod_names: Union[Set[str], Dict[str, List[dict]]]) -> Set[str]:
+def _get_non_std_modules(mod_names: Iterable[str]) -> Set[str]:
     """Take a snapshot of the non-standard modules currently imported"""
     # Determine the names from the list that are non-standard
-    non_std_mods = {mod_name for mod_name in mod_names if _is_third_party(mod_name)}
-
-    # If this is a set, just return it directly
-    if isinstance(mod_names, (set, list)):
-        return non_std_mods
-
-    # If it's a dict, limit to the non standard names
-    return {
-        mod_name: mod_vals
-        for mod_name, mod_vals in mod_names.items()
-        if mod_name in non_std_mods
-    }
+    return {mod_name for mod_name in mod_names if _is_third_party(mod_name)}
 
 
 def _get_value_col(dis_line: str) -> str:
@@ -346,10 +335,8 @@ def _figure_out_import(
 
     # Try with the import_from attached. This might be a module name or a
     # non-module attribute, so this might not work
-    if not import_name:
-        full_import_candidate = import_from
-    else:
-        full_import_candidate = f"{import_name}.{import_from}"
+    full_import_candidate = f"{import_name}.{import_from}"
+    log.debug3("Looking for [%s] in sys.modules", full_import_candidate)
     if full_import_candidate in sys.modules:
         return sys.modules[full_import_candidate]
 
