@@ -3,6 +3,7 @@ This module implements utilities that enable tracking of third party deps
 through import statements
 """
 # Standard
+from ast import Import
 from types import ModuleType
 from typing import Dict, Iterable, List, Optional, Set, Union
 import dis
@@ -356,10 +357,7 @@ def _get_imports(mod: ModuleType) -> Set[ModuleType]:
     try:
         loader = mod.__loader__ or mod.__spec__.loader
         mod_code = loader.get_code(mod.__name__)
-    except ImportError:
-        log.debug2("Could not get_code(%s)", mod.__name__)
-        return all_imports
-    except AttributeError:
+    except (AttributeError, ImportError):
         log.warning("Couldn't find a loader for %s!", mod.__name__)
         return all_imports
     if mod_code is None:
@@ -381,10 +379,7 @@ def _get_imports(mod: ModuleType) -> Set[ModuleType]:
                 current_dots = int(line_val)
         elif "IMPORT_NAME" in line:
             open_import = True
-            if line_val.isnumeric():
-                current_dots = int(line_val)
-            else:
-                current_import_name = line_val
+            current_import_name = line_val
         elif "IMPORT_FROM" in line:
             open_import = True
             current_import_from = line_val
