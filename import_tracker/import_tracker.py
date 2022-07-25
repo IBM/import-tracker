@@ -170,7 +170,7 @@ def track_module(
             mod: list(sorted(deps.keys())) for mod, deps in flattened_deps.items()
         }
     else:
-        deps_out = {}
+        deps_out = {mod: {} for mod in flattened_deps.keys()}
 
     if detect_transitive:
         for mod, deps in flattened_deps.items():
