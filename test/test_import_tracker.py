@@ -267,6 +267,34 @@ def test_detect_transitive_with_nested_module():
     }
 
 
+def test_detect_transitive_with_nested_module_full_depth():
+    """Test that with full_depth, nested dependencies are taken into account"""
+    lib_mapping = import_tracker.track_module(
+        "direct_dep_nested",
+        submodules=True,
+        detect_transitive=True,
+        full_depth=True,
+    )
+    assert lib_mapping == {
+        "direct_dep_nested": {
+            "alog": {"type": constants.TYPE_TRANSITIVE},
+            "sample_lib": {"type": constants.TYPE_DIRECT},
+            "yaml": {"type": constants.TYPE_TRANSITIVE},
+            "conditional_deps": {"type": constants.TYPE_TRANSITIVE},
+        },
+        "direct_dep_nested.nested": {
+            "sample_lib": {"type": constants.TYPE_DIRECT},
+            "yaml": {"type": constants.TYPE_DIRECT},
+            "conditional_deps": {"type": constants.TYPE_TRANSITIVE},
+        },
+        "direct_dep_nested.nested2": {
+            "alog": {"type": constants.TYPE_DIRECT},
+            "sample_lib": {"type": constants.TYPE_TRANSITIVE},
+            "conditional_deps": {"type": constants.TYPE_TRANSITIVE},
+        },
+    }
+
+
 def test_lazy_module_trigger():
     """Make sure that a sub-module which holds LazyModule attrs does not
     incorrectly trigger their imports when run through import_tracker.
