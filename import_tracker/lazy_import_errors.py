@@ -57,18 +57,6 @@ def lazy_import_errors(
 
 ## Implementation Details ######################################################
 
-_TRACKING_MODE = False
-
-
-def enable_tracking_mode():
-    """This is used by the main function to disable all lazy import errors when
-    running as a standalone script to track the modules in a library.
-
-    This function should NOT be exposed as a public API
-    """
-    global _TRACKING_MODE
-    _TRACKING_MODE = True
-
 
 def _make_extras_import_error(
     get_extras_modules: Callable[[], Set[str]],
@@ -125,11 +113,7 @@ class _LazyImportErrorCtx(AbstractContextManager):
         acts as the context manager, so the __enter__ implementation lives in
         the constructor.
         """
-        if (
-            not _TRACKING_MODE
-            and sys.meta_path
-            and not isinstance(sys.meta_path[-1], _LazyErrorMetaFinder)
-        ):
+        if sys.meta_path and not isinstance(sys.meta_path[-1], _LazyErrorMetaFinder):
             sys.meta_path.append(_LazyErrorMetaFinder(make_error_message))
 
     @staticmethod
