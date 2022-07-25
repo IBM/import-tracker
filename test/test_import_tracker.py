@@ -192,7 +192,7 @@ def test_detect_transitive_with_stack_traces():
                         "direct_dep_ambiguous.foo",
                     ],
                 ],
-                "type": "direct",
+                "type": constants.TYPE_DIRECT,
             },
             "yaml": {
                 "stack": [
@@ -201,7 +201,7 @@ def test_detect_transitive_with_stack_traces():
                         "direct_dep_ambiguous.foo",
                     ],
                 ],
-                "type": "transitive",
+                "type": constants.TYPE_TRANSITIVE,
             },
         },
         "direct_dep_ambiguous.bar": {
@@ -212,7 +212,7 @@ def test_detect_transitive_with_stack_traces():
                         "direct_dep_ambiguous.bar",
                     ],
                 ],
-                "type": "transitive",
+                "type": constants.TYPE_TRANSITIVE,
             },
         },
         "direct_dep_ambiguous.foo": {
@@ -220,13 +220,13 @@ def test_detect_transitive_with_stack_traces():
                 "stack": [
                     ["direct_dep_ambiguous.foo"],
                 ],
-                "type": "direct",
+                "type": constants.TYPE_DIRECT,
             },
             "yaml": {
                 "stack": [
                     ["direct_dep_ambiguous.foo"],
                 ],
-                "type": "direct",
+                "type": constants.TYPE_DIRECT,
             },
         },
     }
@@ -241,6 +241,30 @@ def test_with_limited_submodules():
         submodules=["sample_lib.submod1"],
     )
     assert set(lib_mapping.keys()) == {"sample_lib", "sample_lib.submod1"}
+
+
+def test_detect_transitive_with_nested_module():
+    """Test that detect_transitive works with nested modules as expected"""
+    lib_mapping = import_tracker.track_module(
+        "direct_dep_nested",
+        submodules=True,
+        detect_transitive=True,
+    )
+    assert lib_mapping == {
+        "direct_dep_nested": {
+            "alog": {"type": constants.TYPE_TRANSITIVE},
+            "sample_lib": {"type": constants.TYPE_DIRECT},
+            "yaml": {"type": constants.TYPE_TRANSITIVE},
+        },
+        "direct_dep_nested.nested": {
+            "sample_lib": {"type": constants.TYPE_DIRECT},
+            "yaml": {"type": constants.TYPE_DIRECT},
+        },
+        "direct_dep_nested.nested2": {
+            "alog": {"type": constants.TYPE_DIRECT},
+            "sample_lib": {"type": constants.TYPE_TRANSITIVE},
+        },
+    }
 
 
 def test_lazy_module_trigger():
