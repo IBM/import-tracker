@@ -3,9 +3,8 @@ This module implements utilities that enable tracking of third party deps
 through import statements
 """
 # Standard
-from ast import Import
 from types import ModuleType
-from typing import Dict, Iterable, List, Optional, Set, Union
+from typing import Any, Dict, Iterable, List, Optional, Set, Union
 import dis
 import importlib
 import os
@@ -25,7 +24,7 @@ def track_module(
     track_import_stack: bool = False,
     full_depth: bool = False,
     detect_transitive: bool = False,
-) -> dict:
+) -> Union[Dict[str, List[str]], Dict[str, Dict[str, Any]]]:
     """Track the dependencies of a single python module
 
     Args:
@@ -49,12 +48,13 @@ def track_module(
             Detect whether each dependency is 'direct' or 'transitive'
 
     Returns:
-        import_mapping:  dict
+        import_mapping:  Union[Dict[str, List[str]], Dict[str, Dict[str, Any]]]
             The mapping from fully-qualified module name to the set of imports
-            needed by the given module. If tracking import stacks, each
-            dependency of a given module maps to a list of lists that each
-            outline one path through imported modules that caused the given
-            dependency association.
+            needed by the given module. If tracking import stacks or detecting
+            direct vs transitive dependencies, the output schema is
+            Dict[str, Dict[str, Any]] where the nested dicts hold "stack" and/or
+            "type" keys respectively. If neither feature is enabled, the schema
+            is Dict[str, List[str]].
     """
 
     # Import the target module
@@ -155,7 +155,7 @@ def track_module(
     log.debug2("Output modules: %s", output_mods)
 
     # Add parent direct deps to the module deps map
-    parent_direct_deps = _add_parent_direct_deps(module_deps_map)
+    parent_direct_deps = _find_parent_direct_deps(module_deps_map)
 
     # Flatten each of the output mods' dependency lists
     flattened_deps = {
@@ -164,15 +164,20 @@ def track_module(
     }
     log.debug("Raw output deps map: %s", flattened_deps)
 
-    # If detecting transitive deps, look through the stacks and mark each dep as
-    # transitive or direct
+    # If not detecting transitive or import stacks, the values are simple lists
+    # of dependency names
     if not detect_transitive and not track_import_stack:
         deps_out = {
             mod: list(sorted(deps.keys())) for mod, deps in flattened_deps.items()
         }
+
+    # Otherwise, the values will be dicts with some combination of "type" and
+    # "stack" populated
     else:
         deps_out = {mod: {} for mod in flattened_deps.keys()}
 
+    # If detecting transitive deps, look through the stacks and mark each dep as
+    # transitive or direct
     if detect_transitive:
         for mod, deps in flattened_deps.items():
             for dep_name, dep_stacks in deps.items():
@@ -287,6 +292,7 @@ def _get_non_std_modules(mod_names: Iterable[str]) -> Set[str]:
 
 
 def _get_value_col(dis_line: str) -> str:
+    """Parse the string value from a `dis` output line"""
     loc = dis_line.find("(")
     if loc >= 0:
         return dis_line[loc + 1 : -1]
@@ -299,6 +305,10 @@ def _figure_out_import(
     import_name: Optional[str],
     import_from: Optional[str],
 ) -> ModuleType:
+    """This function takes the set of information about an individual import
+    statement parsed out of the `dis` output and attempts to find the in-memory
+    module object it refers to.
+    """
     log.debug2("Figuring out import [%s/%s/%s]", dots, import_name, import_from)
 
     # If there are no dots, look for candidate absolute imports
@@ -415,11 +425,13 @@ def _get_imports(mod: ModuleType) -> Set[ModuleType]:
     return all_imports
 
 
-def _add_parent_direct_deps(
+def _find_parent_direct_deps(
     module_deps_map: Dict[str, List[str]]
 ) -> Dict[str, Dict[str, List[str]]]:
-    """Augment the dependencies of each module in the module deps map with any
-    third-party dependencies that are directly imported by parent modules.
+    """Construct a mapping for each module (e.g. foo.bar.baz) to a mapping of
+    parent modules (e.g. [foo, foo.bar]) and the sets of imports that are
+    directly imported in those modules. This mapping is used to augment the sets
+    of required imports for each target module in the final flattening.
     """
 
     parent_direct_deps = {}
