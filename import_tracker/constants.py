@@ -15,3 +15,4 @@ TYPE_TRANSITIVE = "transitive"
 # Info section headers
 INFO_TYPE = "type"
 INFO_STACK = "stack"
+INFO_OPTIONAL = "optional"
