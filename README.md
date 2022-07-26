@@ -35,14 +35,12 @@ python3 -m import_tracker --name <my_module>
 The main supports the following additional arguments:
 
 -   `--package`: Allows `--name` to be a relative import (see [`importlib.import_module`](https://docs.python.org/3/library/importlib.html#importlib.import_module))
--   `--recursive`: Recurse into sub-modules within the given module to produce the full mapping for the given module
--   `--num_jobs`: When `--recurse` is given, run the recursive jobs concurrently with the given number of workers (0 implies serial execution)
 -   `--indent`: Indent the output json for pretty printing
 -   `--log_level`: Set the level of logging (up to `debug4`) to debug unexpected behavior
--   `--submodules`: List of sub-modules to recurse on (only used when --recursive set)
--   `--side_effect_modules`: Modules with known import-time side effect which should always be allowed to import
+-   `--submodules`: List of sub-modules to recurse on (or full recursion when no args given)
 -   `--track_import_stack`: Store the stack trace of imports belonging to the tracked module
-    -   **NOTE**: This is _very slow_ and should be used only when performing specific debugging tasks!
+-   `--detect_transitive`: Mark each dependency as either "direct" (imported directly) or "transitive" (inherited from a direct import)
+-   `--full_depth`: Track all dependencies, including transitive dependencies of direct third-party deps
 
 ## Integrating `import_tracker` into a project
 
