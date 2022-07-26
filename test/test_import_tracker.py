@@ -25,7 +25,6 @@ def test_import_tracker_public_api():
     expected_attrs = {
         "setup_tools",
         "track_module",
-        "LazyModule",
         "lazy_import_errors",
     }
     module_attrs = set(dir(import_tracker))
@@ -301,29 +300,6 @@ def test_detect_transitive_with_nested_module_full_depth():
             "sample_lib": {"type": constants.TYPE_TRANSITIVE},
             "conditional_deps": {"type": constants.TYPE_TRANSITIVE},
         },
-    }
-
-
-def test_lazy_module_trigger():
-    """Make sure that a sub-module which holds LazyModule attrs does not
-    incorrectly trigger their imports when run through import_tracker.
-
-    BREAKING CHANGE: With the overhaul to use bytecode, lazy deps are fully
-        invisible since there's no way to detect when a LazyModule triggers its
-        import without inspecting every __getattr__ invocation in the bytecode!
-        This is a departure from the results when instrumenting the import
-        framework where these changes can be detected in sys.modules.
-        Ultimately, this functionality with LazyModule should probably go away
-        fully since it's not a particularly userful tool anymore.
-    """
-    lib_mapping = track_module(
-        "lazy_module",
-        submodules=True,
-    )
-    assert lib_mapping == {
-        "lazy_module": [],
-        "lazy_module.lazy_deps": [],
-        "lazy_module.mod": [],
     }
 
 

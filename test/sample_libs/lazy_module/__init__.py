@@ -1,2 +1,0 @@
-# Local
-from . import mod
