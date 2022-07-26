@@ -22,6 +22,7 @@ def parse_requirements(
     requirements: Union[List[str], str],
     library_name: str,
     extras_modules: Optional[List[str]] = None,
+    full_depth: bool = True,
     **kwargs,
 ) -> Tuple[List[str], Dict[str, List[str]]]:
     """This helper uses the lists of required modules and parameters for the
@@ -36,6 +37,10 @@ def parse_requirements(
         extras_modules:  Optional[List[str]]
             List of module names that should be used to generate extras_require
             sets
+        full_depth:  bool
+            Passthrough to track_module. The default here is switched to True so
+            that modules which are both direct and transitive dependencies of
+            the library are correctly allocated.
         **kwargs:
             Additional keyword arguments to pass through to track_module
 
@@ -68,6 +73,7 @@ def parse_requirements(
         library_name,
         submodules=True,
         detect_transitive=True,
+        full_depth=full_depth,
         **kwargs,
     )
     log.debug4("Library Import Mapping:\n%s", library_import_mapping)

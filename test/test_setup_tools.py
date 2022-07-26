@@ -192,3 +192,46 @@ def test_nested_deps():
         "direct_dep_nested.nested": sorted(["PyYaml"]),
         "direct_dep_nested.nested2": sorted(["alchemy-logging"]),
     }
+
+
+def test_full_depth_direct_and_transitive():
+    """Make sure that a library which holds a dependency as both a direct import
+    dependency and also requires it transitively through another third party
+    library correclty allocates the dependency to places where the intermediate
+    third party library is required.
+    """
+    # Run without full_depth and ensure that alog is only allocated to foo and
+    # is not in the base requirements
+    requirements, extras_require = parse_requirements(
+        ["single_extra", "alchemy-logging"],
+        "full_depth_direct_and_transitive",
+        [
+            "full_depth_direct_and_transitive.foo",
+            "full_depth_direct_and_transitive.bar",
+        ],
+        full_depth=False,
+    )
+    assert requirements == []
+    assert extras_require == {
+        "all": sorted(["single_extra", "alchemy-logging"]),
+        "full_depth_direct_and_transitive.foo": ["alchemy-logging"],
+        "full_depth_direct_and_transitive.bar": ["single_extra"],
+    }
+
+    # Run without overriding full_depth (defaults to True) and ensure that alog
+    # is found transitively via single_extra so it ends up in the base
+    # requirements
+    requirements, extras_require = parse_requirements(
+        ["single_extra", "alchemy-logging"],
+        "full_depth_direct_and_transitive",
+        [
+            "full_depth_direct_and_transitive.foo",
+            "full_depth_direct_and_transitive.bar",
+        ],
+    )
+    assert requirements == ["alchemy-logging"]
+    assert extras_require == {
+        "all": sorted(["single_extra", "alchemy-logging"]),
+        "full_depth_direct_and_transitive.foo": [],
+        "full_depth_direct_and_transitive.bar": ["single_extra"],
+    }
