@@ -11,7 +11,7 @@ import os
 import sys
 
 # Local
-from .constants import THIS_PACKAGE, TYPE_DIRECT, TYPE_TRANSITIVE
+from . import constants
 from .log import log
 
 ## Public ######################################################################
@@ -181,10 +181,12 @@ def track_module(
     if detect_transitive:
         for mod, deps in flattened_deps.items():
             for dep_name, dep_stacks in deps.items():
-                deps_out.setdefault(mod, {}).setdefault(dep_name, {})["type"] = (
-                    TYPE_DIRECT
+                deps_out.setdefault(mod, {}).setdefault(dep_name, {})[
+                    constants.INFO_TYPE
+                ] = (
+                    constants.TYPE_DIRECT
                     if any(len(dep_stack) == 1 for dep_stack in dep_stacks)
-                    else TYPE_TRANSITIVE
+                    else constants.TYPE_TRANSITIVE
                 )
 
     # If tracking import stacks, move them to the "stack" key in the output
@@ -192,7 +194,7 @@ def track_module(
         for mod, deps in flattened_deps.items():
             for dep_name, dep_stacks in deps.items():
                 deps_out.setdefault(mod, {}).setdefault(dep_name, {})[
-                    "stack"
+                    constants.INFO_STACK
                 ] = dep_stacks
 
     log.debug("Final output: %s", deps_out)
@@ -280,7 +282,7 @@ def _is_third_party(mod_name: str) -> bool:
             mod_name not in sys.modules
             or _get_import_parent_path(mod_name) not in [_std_lib_dir, _std_dylib_dir]
         )
-        and mod_pkg != THIS_PACKAGE
+        and mod_pkg != constants.THIS_PACKAGE
         and mod_pkg not in _known_std_pkgs
     )
 
