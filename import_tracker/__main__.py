@@ -79,6 +79,13 @@ def main():
         help="Detect whether each dependency is 'direct' or 'transitive'",
     )
     parser.add_argument(
+        "--show_optional",
+        "-o",
+        action="store_true",
+        default=False,
+        help="Show whether each dependency is optional or required",
+    )
+    parser.add_argument(
         "--log_level",
         "-l",
         default=os.environ.get("LOG_LEVEL", "warning"),
@@ -109,6 +116,7 @@ def main():
                 track_import_stack=args.track_import_stack,
                 full_depth=args.full_depth,
                 detect_transitive=args.detect_transitive,
+                show_optional=args.show_optional,
             ),
             indent=args.indent,
         )
