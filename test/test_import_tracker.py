@@ -351,6 +351,20 @@ def test_deep_siblings():
     }
 
 
+def test_optional_deps():
+    """Make sure that optional deps are correctly tracked when try/except is
+    used
+    """
+    assert track_module("optional_deps", submodules=True, show_optional=True) == {
+        "optional_deps.not_opt": {
+            "yaml": {"optional": False},
+            "alog": {"optional": False},
+        },
+        "optional_deps": {"yaml": {"optional": False}, "alog": {"optional": False}},
+        "optional_deps.opt": {"yaml": {"optional": False}, "alog": {"optional": True}},
+    }
+
+
 ## Details #####################################################################
 
 
