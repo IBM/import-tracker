@@ -572,12 +572,17 @@ def _flatten_deps(
             opt_dep_values = optional_deps_map.setdefault(dep_root_mod_name, [])
             for dep_source in dep_sources:
                 log.debug4("Considering dep source list for %s: %s", dep, dep_source)
-                opt_dep_values.append(module_deps_map[dep_source[-1]][dep])
                 flat_dep_source = dep_source
                 if dep_root_mod_name in dep_source:
                     flat_dep_source = dep_source[: dep_source.index(dep_root_mod_name)]
+                    opt_dep_values.append(
+                        module_deps_map[flat_dep_source[-1]][dep_root_mod_name]
+                    )
+                else:
+                    opt_dep_values.append(module_deps_map[dep_source[-1]][dep])
                 if flat_dep_source not in flat_dep_sources:
                     flat_dep_sources.append(flat_dep_source)
+    log.debug3("Optional deps map for [%s]: %s", module_name, optional_deps_map)
     optional_deps_map = {
         mod: all(opt_vals) for mod, opt_vals in optional_deps_map.items()
     }

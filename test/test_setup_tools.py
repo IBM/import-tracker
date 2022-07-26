@@ -235,3 +235,65 @@ def test_full_depth_direct_and_transitive():
         "full_depth_direct_and_transitive.foo": [],
         "full_depth_direct_and_transitive.bar": ["single_extra"],
     }
+
+
+def test_setup_tools_keep_optionals():
+    """Make sure that the semantics of keep_optionals work as expected for all
+    valid inputs to keep_optionals
+    """
+    # Without keep_optionals, optional_deps.opt should not depend on alog
+    requirements, extras_require = parse_requirements(
+        ["alchemy-logging", "PyYaml"],
+        "optional_deps",
+        ["optional_deps.opt", "optional_deps.not_opt"],
+    )
+    assert requirements == ["PyYaml"]
+    assert extras_require == {
+        "all": sorted(["alchemy-logging", "PyYaml"]),
+        "optional_deps.opt": [],
+        "optional_deps.not_opt": ["alchemy-logging"],
+    }
+
+    # With keep_optionals=True, optional_deps.opt should depend on alog
+    requirements, extras_require = parse_requirements(
+        ["alchemy-logging", "PyYaml"],
+        "optional_deps",
+        ["optional_deps.opt", "optional_deps.not_opt"],
+        keep_optional=True,
+    )
+    assert requirements == sorted(["alchemy-logging", "PyYaml"])
+    assert extras_require == {
+        "all": sorted(["alchemy-logging", "PyYaml"]),
+        "optional_deps.opt": [],
+        "optional_deps.not_opt": [],
+    }
+
+    # With keep_optionals={"optional_deps.opt": ["alog"]}, optional_deps.opt
+    # should depend on alog
+    requirements, extras_require = parse_requirements(
+        ["alchemy-logging", "PyYaml"],
+        "optional_deps",
+        ["optional_deps.opt", "optional_deps.not_opt"],
+        keep_optional={"optional_deps.opt": ["alog"]},
+    )
+    assert requirements == sorted(["alchemy-logging", "PyYaml"])
+    assert extras_require == {
+        "all": sorted(["alchemy-logging", "PyYaml"]),
+        "optional_deps.opt": [],
+        "optional_deps.not_opt": [],
+    }
+
+    # With keep_optionals={"optional_deps.opt": ["something_else"]},
+    # optional_deps.opt should depend on alog
+    requirements, extras_require = parse_requirements(
+        ["alchemy-logging", "PyYaml"],
+        "optional_deps",
+        ["optional_deps.opt", "optional_deps.not_opt"],
+        keep_optional={"optional_deps.opt": ["something_else"]},
+    )
+    assert requirements == sorted(["PyYaml"])
+    assert extras_require == {
+        "all": sorted(["alchemy-logging", "PyYaml"]),
+        "optional_deps.opt": [],
+        "optional_deps.not_opt": ["alchemy-logging"],
+    }

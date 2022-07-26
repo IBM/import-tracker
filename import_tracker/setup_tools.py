@@ -11,7 +11,7 @@ import re
 import sys
 
 # Local
-from .constants import TYPE_DIRECT
+from .constants import INFO_OPTIONAL
 from .import_tracker import track_module
 from .log import log
 
@@ -23,6 +23,7 @@ def parse_requirements(
     library_name: str,
     extras_modules: Optional[List[str]] = None,
     full_depth: bool = True,
+    keep_optional: Union[bool, Dict[str, List[str]]] = False,
     **kwargs,
 ) -> Tuple[List[str], Dict[str, List[str]]]:
     """This helper uses the lists of required modules and parameters for the
@@ -41,6 +42,13 @@ def parse_requirements(
             Passthrough to track_module. The default here is switched to True so
             that modules which are both direct and transitive dependencies of
             the library are correctly allocated.
+        keep_optional:  Union[bool, Dict[str, List[str]]]
+            Indicate which optional dependencies should be kept when computing
+            the extras sets. If True, all optional dependencies will be kept. If
+            False, none will be kept. Otherwise, the argument should be a dict
+            mapping known optional dependencies of specific modules that should
+            be kept and all optional dependencies not represented in the dict
+            will be dropped.
         **kwargs:
             Additional keyword arguments to pass through to track_module
 
@@ -74,9 +82,27 @@ def parse_requirements(
         submodules=True,
         detect_transitive=True,
         full_depth=full_depth,
+        show_optional=True,
         **kwargs,
     )
     log.debug4("Library Import Mapping:\n%s", library_import_mapping)
+
+    # Remove any unwanted optional imports
+    if keep_optional is not True:
+        keep_optional = keep_optional or {}
+        log.debug2("Trimming optional deps (keep: %s)", keep_optional)
+        library_import_mapping = {
+            mod_name: {
+                dep_name: dep_info
+                for dep_name, dep_info in deps_info.items()
+                if (
+                    not dep_info[INFO_OPTIONAL]
+                    or dep_name in keep_optional.get(mod_name, [])
+                )
+            }
+            for mod_name, deps_info in library_import_mapping.items()
+        }
+        log.debug4("Trimmed Import Mapping:\n%s", library_import_mapping)
 
     # If no extras_modules are given, track them all
     if not extras_modules:
