@@ -11,7 +11,7 @@ import re
 import sys
 
 # Local
-from .constants import THIS_PACKAGE, TYPE_DIRECT
+from .constants import TYPE_DIRECT
 from .import_tracker import track_module
 from .log import log
 
@@ -22,6 +22,7 @@ def parse_requirements(
     requirements: Union[List[str], str],
     library_name: str,
     extras_modules: Optional[List[str]] = None,
+    full_depth: bool = True,
     **kwargs,
 ) -> Tuple[List[str], Dict[str, List[str]]]:
     """This helper uses the lists of required modules and parameters for the
@@ -36,6 +37,10 @@ def parse_requirements(
         extras_modules:  Optional[List[str]]
             List of module names that should be used to generate extras_require
             sets
+        full_depth:  bool
+            Passthrough to track_module. The default here is switched to True so
+            that modules which are both direct and transitive dependencies of
+            the library are correctly allocated.
         **kwargs:
             Additional keyword arguments to pass through to track_module
 
@@ -66,8 +71,9 @@ def parse_requirements(
     # Get the set of required modules for each of the listed extras modules
     library_import_mapping = track_module(
         library_name,
-        recursive=True,
+        submodules=True,
         detect_transitive=True,
+        full_depth=full_depth,
         **kwargs,
     )
     log.debug4("Library Import Mapping:\n%s", library_import_mapping)
@@ -124,16 +130,10 @@ def parse_requirements(
             if parent is None:
                 non_extra_union = non_extra_union.union(import_set)
                 break
-
-    # Add direct dependencies of all parent modules to the non_extra_union
-    for module_name, imports_info in library_import_mapping.items():
-        if module_name not in extras_modules:
-            direct_deps = {
-                requirement_name_map[dep_name]
-                for dep_name, dep_info in imports_info.items()
-                if dep_info.get("type") == TYPE_DIRECT
-            }
-            non_extra_union = non_extra_union.union(direct_deps)
+    common_intersection = common_intersection or set()
+    if len(extras_modules) == 1:
+        common_intersection = set()
+    log.debug3("Raw common intersection: %s", common_intersection)
 
     common_imports = common_intersection.union(non_extra_union)
     log.debug3("Common intersection: %s", common_intersection)
@@ -177,7 +177,7 @@ def parse_requirements(
     standardized_requirements = {
         key.replace("-", "_"): val for key, val in requirements.items()
     }
-    return _map_requirements(standardized_requirements, common_imports), {
+    return sorted(_map_requirements(standardized_requirements, common_imports)), {
         set_name: _map_requirements(standardized_requirements, import_set)
         for set_name, import_set in extras_require_sets.items()
     }

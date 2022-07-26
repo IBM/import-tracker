@@ -7,4 +7,3 @@ tracks their third party deps
 from . import setup_tools
 from .import_tracker import track_module
 from .lazy_import_errors import lazy_import_errors
-from .lazy_module import LazyModule
