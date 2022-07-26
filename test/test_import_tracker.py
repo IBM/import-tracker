@@ -359,7 +359,7 @@ def test_get_imports_no_bytecode():
     bytecode to ensure that they doesn't explode!
     """
     new_mod = ModuleType("new_mod")
-    assert _get_imports(new_mod) == set()
+    assert _get_imports(new_mod) == (set(), set())
     assert not _mod_defined_in_init_file(new_mod)
 
 

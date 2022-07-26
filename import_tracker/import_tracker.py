@@ -485,13 +485,14 @@ def _find_parent_direct_deps(
             parent_mod_name = ".".join(mod_name_parts[:i])
             parent_deps = module_deps_map.get(parent_mod_name, {})
             for dep, parent_dep_opt in parent_deps.items():
-                if not dep.startswith(mod_base_name) and dep not in mod_deps:
+                currently_optional = mod_deps.get(dep, True)
+                if not dep.startswith(mod_base_name) and currently_optional:
                     log.debug3(
-                        "Adding direct-dependency of parent mod [%s]: %s",
+                        "Adding direct-dependency of parent mod [%s] to [%s]: %s",
                         parent_mod_name,
+                        mod_name,
                         dep,
                     )
-                    currently_optional = mod_deps.get(dep, True)
                     mod_deps[dep] = currently_optional and parent_dep_opt
                     parent_direct_deps.setdefault(mod_name, {}).setdefault(
                         parent_mod_name, set()
