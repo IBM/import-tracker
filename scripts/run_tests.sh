@@ -17,7 +17,7 @@ then
     procs_arg="-n $procs"
 else
     echo "Running tests in serial"
-    procs_arg=""
+    procs_arg="--log-cli-level DEBUG4"
 fi
 
 FAIL_THRESH=100.0
