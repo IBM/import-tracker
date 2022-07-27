@@ -319,6 +319,21 @@ def _get_value_col(dis_line: str) -> str:
     return ""
 
 
+def _get_op_number(dis_line: str) -> Optional[int]:
+    """Get the opcode number out of the line of `dis` output"""
+    line_parts = dis_line.split()
+    if not line_parts:
+        return None
+    opcode_idx = min([i for i, val in enumerate(line_parts) if val.isupper()])
+    assert opcode_idx > 0, f"Opcode found at the beginning of line! [{dis_line}]"
+    return int(line_parts[opcode_idx - 1])
+
+
+def _get_try_end_number(dis_line: str) -> int:
+    """For a SETUP_FINALLY line, extract the target end line"""
+    return int(_get_value_col(dis_line).split()[-1])
+
+
 def _figure_out_import(
     mod: ModuleType,
     dots: Optional[int],
@@ -401,11 +416,20 @@ def _get_imports(mod: ModuleType) -> Tuple[Set[ModuleType], Set[ModuleType]]:
     current_import_name = None
     current_import_from = None
     open_import = False
-    num_try = 0
+    open_tries = []
     log.debug4("Byte Code:")
     for line in bcode.dis().split("\n"):
         log.debug4(line)
         line_val = _get_value_col(line)
+
+        # Check whether this line ends a try
+        op_num = _get_op_number(line)
+        log.debug4("Op num: %s", op_num)
+        if op_num in open_tries:
+            open_tries.remove(op_num)
+            log.debug3("Closed try %d. Remaining open tries: %s", op_num, open_tries)
+
+        # Parse the individual ops
         if "LOAD_CONST" in line:
             if line_val.isnumeric():
                 current_dots = int(line_val)
@@ -419,12 +443,9 @@ def _get_imports(mod: ModuleType) -> Tuple[Set[ModuleType], Set[ModuleType]]:
             # If this is a SETUP_FINALLY (try:), increment the number of try
             # blocks open
             if "SETUP_FINALLY" in line:
-                num_try += 1
-
-            # If this is an END_FINALLY (end of a try block), decrement the
-            # number of open try blocks
-            elif "END_FINALLY" in line:
-                num_try -= 1
+                # Get the end target for this try
+                open_tries.append(_get_try_end_number(line))
+                log.debug3("Open tries: %s", open_tries)
 
             # This closes an import, so figure out what the module is that is
             # being imported!
@@ -434,7 +455,7 @@ def _get_imports(mod: ModuleType) -> Tuple[Set[ModuleType], Set[ModuleType]]:
                 )
                 if import_mod is not None:
                     log.debug2("Adding import module [%s]", import_mod.__name__)
-                    if num_try:
+                    if open_tries:
                         log.debug(
                             "Found optional dependency of [%s]: %s",
                             mod.__name__,
