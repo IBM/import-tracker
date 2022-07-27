@@ -19,3 +19,9 @@ try:
     import yaml
 finally:
     HAVE_YAML = "yaml" in sys.modules
+
+
+# Third Party
+# Import a non-optional dependency here to ensure that try blocks are closed
+# correctly on all versions of python
+import google.protobuf

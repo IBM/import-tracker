@@ -360,8 +360,16 @@ def test_optional_deps():
             "yaml": {"optional": False},
             "alog": {"optional": False},
         },
-        "optional_deps": {"yaml": {"optional": False}, "alog": {"optional": False}},
-        "optional_deps.opt": {"yaml": {"optional": False}, "alog": {"optional": True}},
+        "optional_deps": {
+            "yaml": {"optional": False},
+            "alog": {"optional": False},
+            "google": {"optional": False},
+        },
+        "optional_deps.opt": {
+            "yaml": {"optional": False},
+            "alog": {"optional": True},
+            "google": {"optional": False},
+        },
     }
 
 
