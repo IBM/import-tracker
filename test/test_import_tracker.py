@@ -373,6 +373,23 @@ def test_optional_deps():
     }
 
 
+def test_updatream_optional_deps():
+    """Make sure that a module which holds a third-party dep as optional where
+    that third-party dep includes _other_ third-party deps as non-optional
+    should have the transitive deps held as optional due to the optional dep in
+    the transitive chain.
+    """
+    assert track_module(
+        "optional_deps_upstream", full_depth=True, show_optional=True
+    ) == {
+        "optional_deps_upstream": {
+            "yaml": {"optional": True},
+            "alog": {"optional": True},
+            "single_extra": {"optional": True},
+        },
+    }
+
+
 ## Details #####################################################################
 
 
