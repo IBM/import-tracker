@@ -330,7 +330,7 @@ def _get_op_number(dis_line: str) -> Optional[int]:
 
 
 def _get_try_end_number(dis_line: str) -> int:
-    """For a SETUP_FINALLY line, extract the target end line"""
+    """For a SETUP_FINALLY/SETUP_EXPECT line, extract the target end line"""
     return int(_get_value_col(dis_line).split()[-1])
 
 
@@ -416,7 +416,7 @@ def _get_imports(mod: ModuleType) -> Tuple[Set[ModuleType], Set[ModuleType]]:
     current_import_name = None
     current_import_from = None
     open_import = False
-    open_tries = []
+    open_tries = set()
     log.debug4("Byte Code:")
     for line in bcode.dis().split("\n"):
         log.debug4(line)
@@ -441,9 +441,9 @@ def _get_imports(mod: ModuleType) -> Tuple[Set[ModuleType], Set[ModuleType]]:
         else:
             # If this is a SETUP_FINALLY (try:), increment the number of try
             # blocks open
-            if "SETUP_FINALLY" in line:
+            if "SETUP_FINALLY" in line or "SETUP_EXCEPT" in line:
                 # Get the end target for this try
-                open_tries.append(_get_try_end_number(line))
+                open_tries.add(_get_try_end_number(line))
                 log.debug3("Open tries: %s", open_tries)
 
             # This closes an import, so figure out what the module is that is
