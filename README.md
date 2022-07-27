@@ -41,6 +41,7 @@ The main supports the following additional arguments:
 -   `--track_import_stack`: Store the stack trace of imports belonging to the tracked module
 -   `--detect_transitive`: Mark each dependency as either "direct" (imported directly) or "transitive" (inherited from a direct import)
 -   `--full_depth`: Track all dependencies, including transitive dependencies of direct third-party deps
+-   `--show_optional`: Show whether each dependency is optional or required
 
 ## Integrating `import_tracker` into a project
 

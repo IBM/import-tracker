@@ -11,3 +11,8 @@ THIS_PACKAGE = sys.modules[__name__].__package__.partition(".")[0]
 # Labels for direct vs transitive dependencies
 TYPE_DIRECT = "direct"
 TYPE_TRANSITIVE = "transitive"
+
+# Info section headers
+INFO_TYPE = "type"
+INFO_STACK = "stack"
+INFO_OPTIONAL = "optional"

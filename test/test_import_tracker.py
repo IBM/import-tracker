@@ -351,6 +351,45 @@ def test_deep_siblings():
     }
 
 
+def test_optional_deps():
+    """Make sure that optional deps are correctly tracked when try/except is
+    used
+    """
+    assert track_module("optional_deps", submodules=True, show_optional=True) == {
+        "optional_deps.not_opt": {
+            "yaml": {"optional": False},
+            "alog": {"optional": False},
+        },
+        "optional_deps": {
+            "yaml": {"optional": False},
+            "alog": {"optional": False},
+            "google": {"optional": False},
+        },
+        "optional_deps.opt": {
+            "yaml": {"optional": False},
+            "alog": {"optional": True},
+            "google": {"optional": False},
+        },
+    }
+
+
+def test_updatream_optional_deps():
+    """Make sure that a module which holds a third-party dep as optional where
+    that third-party dep includes _other_ third-party deps as non-optional
+    should have the transitive deps held as optional due to the optional dep in
+    the transitive chain.
+    """
+    assert track_module(
+        "optional_deps_upstream", full_depth=True, show_optional=True
+    ) == {
+        "optional_deps_upstream": {
+            "yaml": {"optional": True},
+            "alog": {"optional": True},
+            "single_extra": {"optional": True},
+        },
+    }
+
+
 ## Details #####################################################################
 
 
@@ -359,7 +398,7 @@ def test_get_imports_no_bytecode():
     bytecode to ensure that they doesn't explode!
     """
     new_mod = ModuleType("new_mod")
-    assert _get_imports(new_mod) == set()
+    assert _get_imports(new_mod) == (set(), set())
     assert not _mod_defined_in_init_file(new_mod)
 
 
