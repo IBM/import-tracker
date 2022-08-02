@@ -113,19 +113,22 @@ class _LazyImportErrorCtx(AbstractContextManager):
         acts as the context manager, so the __enter__ implementation lives in
         the constructor.
         """
-        if sys.meta_path and not isinstance(sys.meta_path[-1], _LazyErrorMetaFinder):
-            sys.meta_path.append(_LazyErrorMetaFinder(make_error_message))
+        self.finder = None
+        if sys.meta_path and not any(
+            getattr(finder, "owner_content", None) is self for finder in sys.meta_path
+        ):
+            self.finder = _LazyErrorMetaFinder(make_error_message, self)
+            sys.meta_path.append(self.finder)
 
     @staticmethod
     def __enter__():
         """Nothing to do in __enter__ since it's done in __init__"""
         pass
 
-    @classmethod
-    def __exit__(cls, *_, **__):
+    def __exit__(self, *_, **__):
         """On exit, ensure there are no lazy meta finders left"""
-        while sys.meta_path and isinstance(sys.meta_path[-1], _LazyErrorMetaFinder):
-            sys.meta_path.pop()
+        if self.finder in sys.meta_path:
+            sys.meta_path.remove(self.finder)
 
 
 class _LazyErrorAttr(type):
@@ -443,8 +446,14 @@ class _LazyErrorMetaFinder(importlib.abc.MetaPathFinder):
     potentially raise an ImportError when the module is used
     """
 
-    def __init__(self, make_error_message: Optional[Callable[[str], str]]):
+    def __init__(
+        self,
+        make_error_message: Optional[Callable[[str], str]],
+        owner_context: _LazyImportErrorCtx,
+    ):
         self._make_error_message = make_error_message
+        self.owner_context = owner_context
+
         self.calling_pkg = None
         self.this_module = sys.modules[__name__].__package__.split(".")[0]
         for pkgname in self._get_non_import_modules():
