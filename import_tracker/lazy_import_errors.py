@@ -129,9 +129,6 @@ class _LazyImportErrorCtx(AbstractContextManager):
         """On exit, ensure there are no lazy meta finders left"""
         if self.finder in sys.meta_path:
             sys.meta_path.remove(self.finder)
-        # while sys.meta_path and isinstance(sys.meta_path[-1], _LazyErrorMetaFinder):
-
-        #     sys.meta_path.pop()
 
 
 class _LazyErrorAttr(type):
