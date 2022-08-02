@@ -114,17 +114,17 @@ class _LazyImportErrorCtx(AbstractContextManager):
         the constructor.
         """
         self.finder = None
-        if sys.meta_path and not any(getattr(finder, "owner_content", None) is self for finder in sys.meta_path):
+        if sys.meta_path and not any(
+            getattr(finder, "owner_content", None) is self for finder in sys.meta_path
+        ):
             self.finder = _LazyErrorMetaFinder(make_error_message, self)
             sys.meta_path.append(self.finder)
-
 
     @staticmethod
     def __enter__():
         """Nothing to do in __enter__ since it's done in __init__"""
         pass
 
-    # @classmethod
     def __exit__(self, *_, **__):
         """On exit, ensure there are no lazy meta finders left"""
         if self.finder in sys.meta_path:
@@ -449,7 +449,11 @@ class _LazyErrorMetaFinder(importlib.abc.MetaPathFinder):
     potentially raise an ImportError when the module is used
     """
 
-    def __init__(self, make_error_message: Optional[Callable[[str], str]], owner_context: _LazyImportErrorCtx):
+    def __init__(
+        self,
+        make_error_message: Optional[Callable[[str], str]],
+        owner_context: _LazyImportErrorCtx,
+    ):
         self._make_error_message = make_error_message
         self.owner_context = owner_context
 

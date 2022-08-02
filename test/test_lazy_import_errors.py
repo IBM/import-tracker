@@ -3,13 +3,13 @@ Tests for the lazy_import_errors functionality
 """
 
 # Standard
+from types import ModuleType
 import os
 import pickle
 import shlex
 import subprocess
 import sys
 import tempfile
-from types import ModuleType
 
 # Third Party
 import pytest
@@ -377,6 +377,7 @@ def test_frame_generator_stop():
     correctly if iterated to the end
     """
     list(_LazyErrorMetaFinder._FrameGenerator())
+
 
 def test_lazy_import_error_nested():
     """Make sure the each lazy import errors only pops itself off of sys.metapath"""
