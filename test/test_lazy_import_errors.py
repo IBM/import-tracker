@@ -9,6 +9,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+from types import ModuleType
 
 # Third Party
 import pytest
@@ -376,3 +377,30 @@ def test_frame_generator_stop():
     correctly if iterated to the end
     """
     list(_LazyErrorMetaFinder._FrameGenerator())
+
+def test_lazy_import_error_nested():
+    """Make sure the each lazy import errors only pops itself off of sys.metapath"""
+    with import_tracker.lazy_import_errors():
+        with import_tracker.lazy_import_errors():
+            pass
+        # Third Party
+        import foobar
+
+
+def test_lazy_import_error_modified_meta_path():
+    """Make sure lazy import error works if sys.meta_path gets modified
+    in between
+    """
+
+    class MockModule:
+        def find_spec(self, *args, **kwargs):
+            pass
+
+    sys.meta_path.append(MockModule)
+    with import_tracker.lazy_import_errors():
+        with import_tracker.lazy_import_errors():
+            pass
+        # Third Party
+        import foobar
+
+    sys.meta_path.remove(MockModule)
