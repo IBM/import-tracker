@@ -405,3 +405,20 @@ def test_lazy_import_error_modified_meta_path():
         import foobar
 
     sys.meta_path.remove(MockModule)
+
+
+def test_lazy_import_error_subclass():
+    """Make sure lazy import error works if a class from another module
+    is used as base class for a module where both of them are in
+    lazy imports and parent uses an optional dependency
+    """
+
+    with import_tracker.lazy_import_errors():
+        # Third Party
+        from foo.bar import Foo
+
+        class Baz(Foo):
+            pass
+
+        class Bar(Baz):
+            pass
