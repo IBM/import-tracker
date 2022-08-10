@@ -152,8 +152,9 @@ class _LazyErrorAttr(type):
     ):
         # When this is used as a base class, we need to pass __classcell__
         # through to type.__new__ to avoid a runtime warning.
+
         new_namespace = {}
-        if isinstance(namespace, dict):
+        if isinstance(namespace, dict) and "__classcell__" in namespace:
             new_namespace["__classcell__"] = namespace.get("__classcell__")
         return super().__new__(
             cls, f"_LazyErrorAttr[{missing_module_name}]", (), new_namespace
