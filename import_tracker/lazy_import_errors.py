@@ -7,6 +7,7 @@ used.
 # Standard
 from contextlib import AbstractContextManager
 from functools import partial
+from random import randint
 from types import ModuleType
 from typing import Callable, Optional, Set
 import importlib.abc
@@ -88,6 +89,7 @@ def _make_extras_import_error(
     # Get the set of extras modules from the library
     extras_modules = get_extras_modules()
 
+
     # Look through frames in the stack to see if there's an extras module
     extras_module = None
 
@@ -153,7 +155,6 @@ class _LazyErrorAttr(type):
     ):
         # When this is used as a base class, we need to pass __classcell__
         # through to type.__new__ to avoid a runtime warning.
-
         new_namespace = {}
         if isinstance(namespace, dict) and "__classcell__" in namespace:
             new_namespace["__classcell__"] = namespace.get("__classcell__")
@@ -244,7 +245,8 @@ class _LazyErrorAttr(type):
         self._raise()
 
     def __eq__(self, *_, **__):
-        self._raise()
+        if not _is_import_time():
+            self._raise()
 
     def __float__(self, *_, **__):
         self._raise()
@@ -258,14 +260,16 @@ class _LazyErrorAttr(type):
     def __get__(self, *_, **__):
         self._raise()
 
-    def __getitem__(self, *_, **__):
+    def __getitem__(self, *args, **kwargs):
         self._raise()
 
     def __gt__(self, *_, **__):
         self._raise()
 
     def __hash__(self, *_, **__):
-        self._raise()
+        if not _is_import_time():
+            self._raise()
+        return randint(0, 100000000)
 
     def __iadd__(self, *_, **__):
         self._raise()
