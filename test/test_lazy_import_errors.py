@@ -434,16 +434,20 @@ def test_lazy_import_error_import_time_dep():
     # Third Party
     from decorator_deps import opt_decorator
 
+
 def test_lazy_import_error_type_dict():
     """Test lazy import error for the case where the call to optional
     dependency happens because of type check for Dict
     """
 
+    # Third Party
     from type_check_deps import type_check_dict
+
 
 def test_lazy_import_error_type_union():
     """Test lazy import error for the case where the call to optional
     dependency happens because of type check for Union
     """
 
+    # Third Party
     from type_check_deps import type_check_union

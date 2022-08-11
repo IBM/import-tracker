@@ -89,7 +89,6 @@ def _make_extras_import_error(
     # Get the set of extras modules from the library
     extras_modules = get_extras_modules()
 
-
     # Look through frames in the stack to see if there's an extras module
     extras_module = None
 
