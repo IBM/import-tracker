@@ -422,3 +422,14 @@ def test_lazy_import_error_subclass():
 
         class Bar(Baz):
             pass
+
+
+def test_lazy_import_error_import_time_dep():
+    """Test lazy import error for the case where the call to optional
+    dependency happens at import time
+    """
+    # Following library implements a scenario
+    # where the module captured in lazy_import_error
+    # calls out to a optional dependency via decorator (hence import time)
+    # Third Party
+    from decorator_deps import opt_decorator
