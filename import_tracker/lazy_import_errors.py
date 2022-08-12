@@ -222,12 +222,12 @@ class _LazyErrorAttr(type):
     def __call__(self, *_, **__):
 
         if _is_import_time():
-            # Calling  _LazyErrorAttr at import time may happen if the attribute
-            # is a decorator from a missing dependency, in this case
-            # we want the call to succeed but the resulting value to
-            # deffer the error. Other import time calls besides decorators
-            # could occur, such as constants, in those cases, we also want
-            # the call to succeed and the result value to be a defferred error
+            # Calling _LazyErrorAttr at import time may happen if the attribute
+            # is a decorator from a missing dependency, in this case we want
+            # the call to succeed but the resulting value to deffer the error.
+            # Other import time calls besides decorators could occur, such as
+            # as constants, in those cases, we also want the call to succeed
+            # and the result value to be a defferred error
             return self
         self._raise()
 
@@ -543,7 +543,14 @@ class _LazyErrorMetaFinder(importlib.abc.MetaPathFinder):
         )
 
 
-def _is_import_time():
+def _is_import_time() -> bool:
+    """Function to detect if the execution is being called at import
+    time by detecting the presence of `importlib._bootstrap` in stack
+
+    Returns:
+        bool:
+            True if the execution is at import time otherwise, False
+    """
     return "importlib._bootstrap" in [
         frame.frame.f_globals["__name__"] for frame in inspect.stack()
     ]
