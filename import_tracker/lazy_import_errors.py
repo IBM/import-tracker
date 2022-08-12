@@ -7,7 +7,6 @@ used.
 # Standard
 from contextlib import AbstractContextManager
 from functools import partial
-from random import randint
 from types import ModuleType
 from typing import Callable, Optional, Set
 import importlib.abc
@@ -91,7 +90,6 @@ def _make_extras_import_error(
 
     # Look through frames in the stack to see if there's an extras module
     extras_module = None
-
     for frame in inspect.stack():
         frame_module = frame.frame.f_globals["__name__"]
         if frame_module in extras_modules:
@@ -259,7 +257,7 @@ class _LazyErrorAttr(type):
     def __get__(self, *_, **__):
         self._raise()
 
-    def __getitem__(self, *args, **kwargs):
+    def __getitem__(self, *_, **__):
         self._raise()
 
     def __gt__(self, *_, **__):
@@ -268,7 +266,7 @@ class _LazyErrorAttr(type):
     def __hash__(self, *_, **__):
         if not _is_import_time():
             self._raise()
-        return randint(0, 100000000)
+        return id(self)
 
     def __iadd__(self, *_, **__):
         self._raise()
