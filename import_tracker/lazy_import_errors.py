@@ -241,9 +241,10 @@ class _LazyErrorAttr(type):
     def __delitem__(self, *_, **__):
         self._raise()
 
-    def __eq__(self, *_, **__):
+    def __eq__(self, other, *_, **__):
         if not _is_import_time():
             self._raise()
+        return id(self) == id(other)
 
     def __float__(self, *_, **__):
         self._raise()
