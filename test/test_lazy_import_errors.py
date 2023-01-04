@@ -15,7 +15,7 @@ import tempfile
 import pytest
 
 # Local
-from import_tracker.lazy_import_errors import _LazyErrorMetaFinder
+from import_tracker.lazy_import_errors import _FastFrameGenerator, _LazyErrorMetaFinder
 import import_tracker
 
 
@@ -376,7 +376,7 @@ def test_frame_generator_stop():
     """For completeness, we need to ensure that the FrameGenerator will stop
     correctly if iterated to the end
     """
-    list(_LazyErrorMetaFinder._FrameGenerator())
+    list(_FastFrameGenerator())
 
 
 def test_lazy_import_error_nested():
