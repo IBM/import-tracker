@@ -11,7 +11,6 @@ from types import ModuleType
 from typing import Callable, Optional, Set
 import importlib.abc
 import importlib.util
-import inspect
 import sys
 
 ## Public ######################################################################
@@ -90,8 +89,8 @@ def _make_extras_import_error(
 
     # Look through frames in the stack to see if there's an extras module
     extras_module = None
-    for frame in inspect.stack():
-        frame_module = frame.frame.f_globals["__name__"]
+    for frame in _FastFrameGenerator():
+        frame_module = frame.f_globals.get("__name__", "")
         if frame_module in extras_modules:
             extras_module = frame_module
             break
@@ -514,23 +513,6 @@ class _LazyErrorMetaFinder(importlib.abc.MetaPathFinder):
 
     ## Implementation Details ######################################################
 
-    # Custom iterable that uses the low-level sys._getframe to get frames
-    # one-at-a-time
-    class _FrameGenerator:
-        def __init__(self):
-            self._depth = -1
-
-        def __iter__(self):
-            return self
-
-        def __next__(self):
-            self._depth += 1
-            try:
-                return sys._getframe(self._depth)
-            except ValueError:
-                self._depth = -1
-                raise StopIteration
-
     @classmethod
     def _get_non_import_modules(cls):
 
@@ -539,10 +521,31 @@ class _LazyErrorMetaFinder(importlib.abc.MetaPathFinder):
         return filter(
             lambda x: x != "importlib",
             (
-                frame.f_globals["__name__"].split(".")[0]
-                for frame in cls._FrameGenerator()
+                frame.f_globals.get("__name__", "").split(".")[0]
+                for frame in _FastFrameGenerator()
             ),
         )
+
+
+class _FastFrameGenerator:
+    """Custom iterable that uses the low-level sys._getframe to get frames
+    one-at-a-time.
+    Iterating over this is way faster than using `inspect.stack()`
+    """
+
+    def __init__(self):
+        self._depth = -1
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        self._depth += 1
+        try:
+            return sys._getframe(self._depth)
+        except ValueError:
+            self._depth = -1
+            raise StopIteration
 
 
 def _is_import_time() -> bool:
@@ -554,5 +557,5 @@ def _is_import_time() -> bool:
             True if the execution is at import time otherwise, False
     """
     return "importlib._bootstrap" in [
-        frame.frame.f_globals["__name__"] for frame in inspect.stack()
+        frame.f_globals.get("__name__", "") for frame in _FastFrameGenerator()
     ]
