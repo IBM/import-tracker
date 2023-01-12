@@ -1,3 +1,5 @@
+[![OpenSSF Best Practices](https://bestpractices.coreinfrastructure.org/projects/6907/badge)](https://bestpractices.coreinfrastructure.org/projects/6907)
+
 # Import Tracker
 
 `Import Tracker` is a Python package offering a number of capabilities related to tracking and managing optional dependencies in Python projects. Specifically, this project enables developers to:
