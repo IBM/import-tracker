@@ -1,2 +1,2 @@
 # Local
-from . import baz
+from . import bat, baz

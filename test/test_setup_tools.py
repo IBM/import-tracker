@@ -304,13 +304,36 @@ def test_intermediate_extras():
     belong to their children
     """
     requirements, extras_require = parse_requirements(
-        ["alchemy-logging"],
+        ["alchemy-logging", "PyYAML"],
         "intermediate_extras",
         ["intermediate_extras.foo", "intermediate_extras.bar"],
     )
     assert not requirements
     assert extras_require == {
-        "all": ["alchemy-logging"],
-        "intermediate_extras.foo": ["alchemy-logging"],
+        "all": sorted(["alchemy-logging", "PyYAML"]),
+        "intermediate_extras.foo": sorted(["alchemy-logging", "PyYAML"]),
+        "intermediate_extras.bar": [],
+    }
+
+
+def test_intermediate_extras_with_overlap():
+    """Make sure that intermediate extras correctly own unique dependencies that
+    belong to their children, even when other children are held as overlapping
+    extras.
+    """
+    requirements, extras_require = parse_requirements(
+        ["alchemy-logging", "PyYAML"],
+        "intermediate_extras",
+        [
+            "intermediate_extras.foo",
+            "intermediate_extras.foo.bat",
+            "intermediate_extras.bar",
+        ],
+    )
+    assert not requirements
+    assert extras_require == {
+        "all": sorted(["alchemy-logging", "PyYAML"]),
+        "intermediate_extras.foo": sorted(["alchemy-logging", "PyYAML"]),
+        "intermediate_extras.foo.bat": sorted(["PyYAML"]),
         "intermediate_extras.bar": [],
     }
