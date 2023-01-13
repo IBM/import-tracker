@@ -134,13 +134,6 @@ def parse_requirements(
 
     # Determine the common requirements as the intersection of all extras sets
     # union'ed with all other import sets
-    extras_modules_tree = {}
-    for extras_module in extras_modules:
-        parent = extras_modules_tree
-        for part in extras_module.split("."):
-            parent = parent.setdefault(part, {})
-    log.debug4("Extras Modules Tree: %s", extras_modules_tree)
-
     common_intersection = None
     non_extra_union = set()
     for import_set_name, import_set in import_sets.items():
@@ -150,15 +143,24 @@ def parse_requirements(
             common_intersection = common_intersection.intersection(import_set)
 
         # Determine if this import set falls outside of the extras
-        parent = extras_modules_tree
-        for part in import_set_name.split("."):
-            child = parent.get(part)
-            if parent and child is None:
-                non_extra_union = non_extra_union.union(import_set)
-                break
-            elif not parent:
-                break
-            parent = child
+        import_set_parts = import_set_name.split(".")
+        in_extra = any(
+            extras_module.startswith(import_set_name)
+            for extras_module in extras_modules
+        )
+        if not in_extra:
+            for i in range(len(import_set_parts)):
+                parent_path = ".".join(import_set_parts[: i + 1])
+                if parent_path in extras_modules:
+                    in_extra = True
+                    break
+        if not in_extra:
+            log.debug3(
+                "%s not covered by an extra. Adding %s to non extra union",
+                import_set_name,
+                import_set,
+            )
+            non_extra_union = non_extra_union.union(import_set)
     common_intersection = common_intersection or set()
     if len(extras_modules) == 1:
         common_intersection = set()
