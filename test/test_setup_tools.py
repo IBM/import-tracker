@@ -297,3 +297,43 @@ def test_setup_tools_keep_optionals():
         "optional_deps.opt": [],
         "optional_deps.not_opt": ["alchemy-logging"],
     }
+
+
+def test_intermediate_extras():
+    """Make sure that intermediate extras correctly own unique dependencies that
+    belong to their children
+    """
+    requirements, extras_require = parse_requirements(
+        ["alchemy-logging", "PyYAML"],
+        "intermediate_extras",
+        ["intermediate_extras.foo", "intermediate_extras.bar"],
+    )
+    assert not requirements
+    assert extras_require == {
+        "all": sorted(["alchemy-logging", "PyYAML"]),
+        "intermediate_extras.foo": sorted(["alchemy-logging", "PyYAML"]),
+        "intermediate_extras.bar": [],
+    }
+
+
+def test_intermediate_extras_with_overlap():
+    """Make sure that intermediate extras correctly own unique dependencies that
+    belong to their children, even when other children are held as overlapping
+    extras.
+    """
+    requirements, extras_require = parse_requirements(
+        ["alchemy-logging", "PyYAML"],
+        "intermediate_extras",
+        [
+            "intermediate_extras.foo",
+            "intermediate_extras.foo.bat",
+            "intermediate_extras.bar",
+        ],
+    )
+    assert not requirements
+    assert extras_require == {
+        "all": sorted(["alchemy-logging", "PyYAML"]),
+        "intermediate_extras.foo": sorted(["alchemy-logging", "PyYAML"]),
+        "intermediate_extras.foo.bat": sorted(["PyYAML"]),
+        "intermediate_extras.bar": [],
+    }
