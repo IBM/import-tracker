@@ -297,3 +297,20 @@ def test_setup_tools_keep_optionals():
         "optional_deps.opt": [],
         "optional_deps.not_opt": ["alchemy-logging"],
     }
+
+
+def test_intermediate_extras():
+    """Make sure that intermediate extras correctly own unique dependencies that
+    belong to their children
+    """
+    requirements, extras_require = parse_requirements(
+        ["alchemy-logging"],
+        "intermediate_extras",
+        ["intermediate_extras.foo", "intermediate_extras.bar"],
+    )
+    assert not requirements
+    assert extras_require == {
+        "all": ["alchemy-logging"],
+        "intermediate_extras.foo": ["alchemy-logging"],
+        "intermediate_extras.bar": [],
+    }
