@@ -152,10 +152,13 @@ def parse_requirements(
         # Determine if this import set falls outside of the extras
         parent = extras_modules_tree
         for part in import_set_name.split("."):
-            parent = parent.get(part)
-            if parent is None:
+            child = parent.get(part)
+            if parent and child is None:
                 non_extra_union = non_extra_union.union(import_set)
                 break
+            elif not parent:
+                break
+            parent = child
     common_intersection = common_intersection or set()
     if len(extras_modules) == 1:
         common_intersection = set()
