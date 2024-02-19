@@ -8,6 +8,7 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 import dis
 import importlib
 import os
+import re
 import sys
 
 # Local
@@ -250,12 +251,13 @@ def _get_dylib_dir():
                 sample_dylib = fname
                 break
 
-    if sample_dylib is not None:
-        return os.path.realpath(os.path.dirname(sample_dylib))
-
     # If all else fails, we'll just return a sentinel string. This will fail to
     # match in the below check for builtin modules
-    return "BADPATH"  # pragma: no cover
+    return (
+        os.path.realpath(os.path.dirname(sample_dylib))
+        if sample_dylib is not None
+        else "BADPATH"
+    )
 
 
 # The path where global modules are found
@@ -330,9 +332,39 @@ def _get_op_number(dis_line: str) -> Optional[int]:
     return int(line_parts[opcode_idx - 1])
 
 
-def _get_try_end_number(dis_line: str) -> int:
-    """For a SETUP_FINALLY/SETUP_EXPECT line, extract the target end line"""
-    return int(_get_value_col(dis_line).split()[-1])
+def _get_try_end_number(
+    dis_line: str,
+    op_num: Optional[int],
+    exception_table: Dict[int, int],
+) -> Optional[int]:
+    """If the line contains a known indicator for a try block, get the
+    corresponding end number
+
+    NOTE: This contains compatibility code for changes between 3.10 and 3.11
+    """
+    return exception_table.get(op_num or -1) or (
+        int(_get_value_col(dis_line).split()[-1])
+        if any(op in dis_line for op in ["SETUP_FINALLY", "SETUP_EXCEPT"])
+        else None
+    )
+
+
+def _get_exception_table(dis_lines: List[str]) -> Dict[int, int]:
+    """For 3.11+ exception handling, parse the Exception Table"""
+    table_start = [i for i, line in enumerate(dis_lines) if line == "ExceptionTable:"]
+    assert len(table_start) <= 1, "Found multiple exception tables!"
+    return (
+        {
+            int(m.group(1)): int(m.group(2))
+            for m in [
+                re.match(r"  ([0-9]+) to ([0-9]+) -> [0-9]+ \[([0-9]+)\].*", line)
+                for line in dis_lines[table_start[0] + 1 :]
+            ]
+            if m and int(m.group(3)) == 0 and m.group(1) != m.group(2)
+        }
+        if table_start
+        else {}
+    )
 
 
 def _figure_out_import(
@@ -377,7 +409,7 @@ def _figure_out_import(
     log.debug3("Module file: %s", getattr(mod, "__file__", None))
     if not import_name:
         import_name = root_mod_name
-    else:
+    elif root_mod_name:
         import_name = f"{root_mod_name}.{import_name}"
 
     # Try with the import_from attached. This might be a module name or a
@@ -419,15 +451,23 @@ def _get_imports(mod: ModuleType) -> Tuple[Set[ModuleType], Set[ModuleType]]:
     open_import = False
     open_tries = set()
     log.debug4("Byte Code:")
-    for line in bcode.dis().split("\n"):
+    dis_lines = bcode.dis().split("\n")
+
+    # Look for and parse an Exception Table (3.11+)
+    exception_table = _get_exception_table(dis_lines)
+    log.debug4("Exception Table: %s", exception_table)
+
+    for line in dis_lines:
         log.debug4(line)
         line_val = _get_value_col(line)
 
-        # Check whether this line ends a try
+        # If this is the beginning of a try block, add the end to the known open
+        # try set
         op_num = _get_op_number(line)
-        if op_num in open_tries:
-            open_tries.remove(op_num)
-            log.debug3("Closed try %d. Remaining open tries: %s", op_num, open_tries)
+        try_end = _get_try_end_number(line, op_num, exception_table)
+        if try_end:
+            open_tries.add(try_end)
+            log.debug3("Open tries: %s", open_tries)
 
         # Parse the individual ops
         if "LOAD_CONST" in line:
@@ -440,13 +480,6 @@ def _get_imports(mod: ModuleType) -> Tuple[Set[ModuleType], Set[ModuleType]]:
             open_import = True
             current_import_from = line_val
         else:
-            # If this is a SETUP_FINALLY (try:), increment the number of try
-            # blocks open
-            if "SETUP_FINALLY" in line or "SETUP_EXCEPT" in line:
-                # Get the end target for this try
-                open_tries.add(_get_try_end_number(line))
-                log.debug3("Open tries: %s", open_tries)
-
             # This closes an import, so figure out what the module is that is
             # being imported!
             if open_import:
@@ -472,6 +505,11 @@ def _get_imports(mod: ModuleType) -> Tuple[Set[ModuleType], Set[ModuleType]]:
                 current_import_name = None
             open_import = False
             current_import_from = None
+
+        # Close the open try if this ends one
+        if op_num in open_tries:
+            open_tries.remove(op_num)
+            log.debug3("Closed try %d. Remaining open tries: %s", op_num, open_tries)
 
     # To the best of my knowledge, all bytecode will end with something other
     # than an import, even if an import is the last line in the file (e.g.
