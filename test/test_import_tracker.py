@@ -373,7 +373,7 @@ def test_optional_deps():
     }
 
 
-def test_updatream_optional_deps():
+def test_upstream_optional_deps():
     """Make sure that a module which holds a third-party dep as optional where
     that third-party dep includes _other_ third-party deps as non-optional
     should have the transitive deps held as optional due to the optional dep in
