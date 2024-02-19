@@ -268,6 +268,10 @@ _known_std_pkgs = [
 ]
 
 
+# Regex for matching lines in the exception table
+_exception_table_expr = re.compile(r"  ([0-9]+) to ([0-9]+) -> [0-9]+ \[([0-9]+)\].*")
+
+
 def _mod_defined_in_init_file(mod: ModuleType) -> bool:
     """Determine if the given module is defined in an __init__.py[c]"""
     mod_file = getattr(mod, "__file__", None)
@@ -357,7 +361,7 @@ def _get_exception_table(dis_lines: List[str]) -> Dict[int, int]:
         {
             int(m.group(1)): int(m.group(2))
             for m in [
-                re.match(r"  ([0-9]+) to ([0-9]+) -> [0-9]+ \[([0-9]+)\].*", line)
+                _exception_table_expr.match(line)
                 for line in dis_lines[table_start[0] + 1 :]
             ]
             if m and int(m.group(3)) == 0 and m.group(1) != m.group(2)
