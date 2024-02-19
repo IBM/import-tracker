@@ -39,3 +39,19 @@ jobs:
               run: docker build . --target=test --build-arg PYTHON_VERSION=${PYTHON_VERSION}
               env:
                   PYTHON_VERSION: "3.10"
+    build-311:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v2
+            - name: Run unit tests
+              run: docker build . --target=test --build-arg PYTHON_VERSION=${PYTHON_VERSION}
+              env:
+                  PYTHON_VERSION: "3.11"
+    build-312:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v2
+            - name: Run unit tests
+              run: docker build . --target=test --build-arg PYTHON_VERSION=${PYTHON_VERSION}
+              env:
+                  PYTHON_VERSION: "3.12"
