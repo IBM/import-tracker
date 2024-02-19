@@ -322,9 +322,10 @@ def _get_value_col(dis_line: str) -> str:
 def _get_op_number(dis_line: str) -> Optional[int]:
     """Get the opcode number out of the line of `dis` output"""
     line_parts = dis_line.split()
-    if not line_parts:
+    valid_line_part_idxs = [i for i, val in enumerate(line_parts) if val.isupper()]
+    if not valid_line_part_idxs:
         return None
-    opcode_idx = min([i for i, val in enumerate(line_parts) if val.isupper()])
+    opcode_idx = min(valid_line_part_idxs)
     assert opcode_idx > 0, f"Opcode found at the beginning of line! [{dis_line}]"
     return int(line_parts[opcode_idx - 1])
 
