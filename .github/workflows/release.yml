@@ -41,3 +41,21 @@ jobs:
                   PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
                   PYTHON_VERSION: "3.10"
               run: REF="${{ github.ref }}" ./scripts/release.sh
+    build-311:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v2
+            - name: Run release
+              env:
+                  PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+                  PYTHON_VERSION: "3.11"
+              run: REF="${{ github.ref }}" ./scripts/release.sh
+    build-312:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v2
+            - name: Run release
+              env:
+                  PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+                  PYTHON_VERSION: "3.12"
+              run: REF="${{ github.ref }}" ./scripts/release.sh
