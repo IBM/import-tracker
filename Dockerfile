@@ -43,7 +43,7 @@ FROM test as release
 ARG PYPI_TOKEN
 ARG RELEASE_VERSION
 ARG RELEASE_DRY_RUN
-RUN ./scripts/publish.sh
+RUN ./scripts/publish.sh && touch /released.txt
 
 ## Release Test ################################################################
 #
@@ -53,6 +53,9 @@ RUN ./scripts/publish.sh
 FROM base as release_test
 ARG RELEASE_VERSION
 ARG RELEASE_DRY_RUN
+# Force a dependency on the release phase so that buildkit doesn't run these in
+# parallel
+COPY --from=release /released.txt /released.txt
 COPY ./test /src/test
 COPY ./scripts/run_tests.sh /src/scripts/run_tests.sh
 COPY ./scripts/install_release.sh /src/scripts/install_release.sh
