@@ -8,4 +8,4 @@ pytest-asyncio>=0.16.0
 pytest-cov>=3.0.0
 pytest-xdist>=2.5.0
 # This is only used to validate the funky google namespace corner case
-protobuf==3.19.5
+protobuf==4.25.8
