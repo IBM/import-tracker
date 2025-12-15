@@ -178,7 +178,7 @@ def test_parent_direct_deps():
 
 
 def test_nested_deps():
-    """Make sure that direct depencencies show up in requirements
+    """Make sure that direct dependencies show up in requirements
     for nested modules
     """
     requirements, extras_require = parse_requirements(
@@ -197,7 +197,7 @@ def test_nested_deps():
 def test_full_depth_direct_and_transitive():
     """Make sure that a library which holds a dependency as both a direct import
     dependency and also requires it transitively through another third party
-    library correclty allocates the dependency to places where the intermediate
+    library correctly allocates the dependency to places where the intermediate
     third party library is required.
     """
     # Run without full_depth and ensure that alog is only allocated to foo and

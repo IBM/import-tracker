@@ -224,7 +224,7 @@ def track_module(
 
 
 def _get_dylib_dir():
-    """Differnet versions/builds of python manage different builtin libraries as
+    """Different versions/builds of python manage different builtin libraries as
     "builtins" versus extensions. As such, we need some heuristics to try to
     find the base directory that holds shared objects from the standard library.
     """

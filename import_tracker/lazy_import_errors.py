@@ -39,7 +39,7 @@ def lazy_import_errors(
             setup_tools.parse_requirements. (Mutually exclusive
             with make_error_message)
         make_error_message:  Optional[Callable[[str], str]]
-            Optional callable that takes the name of the module which faild to
+            Optional callable that takes the name of the module which failed to
             import and returns an error message string to be used for the
             ModuleNotFoundError. (Mutually exclusive with get_extras_modules)
     """
@@ -221,10 +221,10 @@ class _LazyErrorAttr(type):
         if _is_import_time():
             # Calling _LazyErrorAttr at import time may happen if the attribute
             # is a decorator from a missing dependency, in this case we want
-            # the call to succeed but the resulting value to deffer the error.
+            # the call to succeed but the resulting value to defer the error.
             # Other import time calls besides decorators could occur, such as
             # as constants, in those cases, we also want the call to succeed
-            # and the result value to be a defferred error
+            # and the result value to be a deferred error
             return self
         self._raise()
 

@@ -394,7 +394,7 @@ def test_upstream_optional_deps():
 
 
 def test_get_imports_no_bytecode():
-    """Excercise _get_imports and _mod_defined_in_init_file on a module with no
+    """Exercise _get_imports and _mod_defined_in_init_file on a module with no
     bytecode to ensure that they doesn't explode!
     """
     new_mod = ModuleType("new_mod")
