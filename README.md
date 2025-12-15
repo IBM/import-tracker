@@ -66,7 +66,7 @@ my_module/
 
 ### Enabling `lazy_import_errors`
 
-The `import_tracker.lazy_import_errors` function can be invoked directly to enable lazy import errors globally, or used as a context manager to enable them only for a selcted set of modules.
+The `import_tracker.lazy_import_errors` function can be invoked directly to enable lazy import errors globally, or used as a context manager to enable them only for a selected set of modules.
 
 To globally enable lazy import errors, `my_module/__init__.py` would look like the following:
 

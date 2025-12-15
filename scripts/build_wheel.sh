@@ -40,7 +40,7 @@ while (($# > 0)); do
   -v | --release_version)
     shift; release_version="$1";;
   *)
-    echo "Unkown argument: $1"
+    echo "Unknown argument: $1"
     show_help
     exit 2
     ;;
