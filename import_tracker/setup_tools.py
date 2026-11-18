@@ -69,12 +69,13 @@ def parse_requirements(
         )
     else:
         requirements_lines = requirements
-    requirements = {
-        _standardize_package_name(_REQ_SPLIT_EXPR.split(line, 1)[0]): line.strip()
-        for line in requirements_lines
-        if line.strip() and not line.startswith("#")
-    }
-    log.debug("Requirements: %s", requirements)
+    declared_requirements = {}
+    for line in requirements_lines:
+        line = line.strip()
+        if line and not line.startswith("#"):
+            name = _standardize_package_name(_REQ_SPLIT_EXPR.split(line, 1)[0])
+            declared_requirements.setdefault(name, set()).add(line)
+    log.debug("Requirements: %s", declared_requirements)
 
     # Get the set of required modules for each of the listed extras modules
     library_import_mapping = track_module(
@@ -188,7 +189,7 @@ def parse_requirements(
         common_imports,
     )
     missing_reqs = (
-        set(_get_required_packages_for_imports(requirements.keys()))
+        set(_get_required_packages_for_imports(declared_requirements.keys()))
         - all_tracked_requirements
     )
     log.debug(
@@ -205,11 +206,8 @@ def parse_requirements(
         extras_require_sets[_ALL_GROUP] = all_reqs
 
     # Map all dependencies through those listed in requirements.txt
-    standardized_requirements = {
-        key.replace("-", "_"): val for key, val in requirements.items()
-    }
-    return sorted(_map_requirements(standardized_requirements, common_imports)), {
-        set_name: _map_requirements(standardized_requirements, import_set)
+    return _map_requirements(declared_requirements, common_imports), {
+        set_name: _map_requirements(declared_requirements, import_set)
         for set_name, import_set in extras_require_sets.items()
     }
 
@@ -217,7 +215,7 @@ def parse_requirements(
 ## Implementation Details ######################################################
 
 # Regex for parsing requirements
-_REQ_SPLIT_EXPR = re.compile(r"[=><!~\[]")
+_REQ_SPLIT_EXPR = re.compile(r"[=><!~;\[]")
 
 # Exprs for finding module names
 _PKG_VERSION_EXPR = re.compile("-[0-9]")
@@ -236,11 +234,11 @@ def _map_requirements(declared_dependencies, dependency_set):
     matches the dependency set
     """
     return sorted(
-        [
-            declared_dependencies[dep.replace("-", "_")]
+        {
+            requirement
             for dep in dependency_set
-            if dep.replace("-", "_") in declared_dependencies
-        ]
+            for requirement in declared_dependencies.get(dep.replace("-", "_"), ())
+        }
     )
 
 

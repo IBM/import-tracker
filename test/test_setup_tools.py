@@ -74,6 +74,21 @@ def test_parse_requirements_happy_iterable(iterable_type):
     }
 
 
+def test_parse_requirements_preserves_environment_markers():
+    variants = [
+        'PyYaml; python_version < "3.10"',
+        'PyYaml>=6; python_version >= "3.10"',
+    ]
+    reqs = [req for req in sample_lib_requirements if not req.startswith("PyYaml")]
+    requirements, extras_require = parse_requirements(reqs + variants, "sample_lib")
+
+    assert requirements == ["import-tracker"]
+    assert extras_require["sample_lib.nested.submod3"] == sorted(
+        variants + ["alchemy-logging>=1.0.3"]
+    )
+    assert extras_require["all"] == sorted(reqs + variants)
+
+
 def test_parse_requirements_add_untracked_reqs():
     """Make sure that packages in the requirements.txt which don't show up in
     any of the tracked modules are added to the common requirements
