@@ -7,51 +7,29 @@ on:
         branches: [main]
     workflow_dispatch: {}
 jobs:
-    build-37:
+    test:
         runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                python-version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
         steps:
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v4
+
+            - name: Set up Python ${{ matrix.python-version }}
+              uses: actions/setup-python@v5
+              with:
+                  python-version: ${{ matrix.python-version }}
+
+            - name: Install test dependencies
+              run: uv pip install -r requirements_test.txt
+
             - name: Run unit tests
-              run: docker build . --target=test --build-arg PYTHON_VERSION=${PYTHON_VERSION}
-              env:
-                  PYTHON_VERSION: "3.7"
-    build-38:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v2
-            - name: Run unit tests
-              run: docker build . --target=test --build-arg PYTHON_VERSION=${PYTHON_VERSION}
-              env:
-                  PYTHON_VERSION: "3.8"
-    build-39:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v2
-            - name: Run unit tests
-              run: docker build . --target=test --build-arg PYTHON_VERSION=${PYTHON_VERSION}
-              env:
-                  PYTHON_VERSION: "3.9"
-    build-310:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v2
-            - name: Run unit tests
-              run: docker build . --target=test --build-arg PYTHON_VERSION=${PYTHON_VERSION}
-              env:
-                  PYTHON_VERSION: "3.10"
-    build-311:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v2
-            - name: Run unit tests
-              run: docker build . --target=test --build-arg PYTHON_VERSION=${PYTHON_VERSION}
-              env:
-                  PYTHON_VERSION: "3.11"
-    build-312:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v2
-            - name: Run unit tests
-              run: docker build . --target=test --build-arg PYTHON_VERSION=${PYTHON_VERSION}
-              env:
-                  PYTHON_VERSION: "3.12"
+              run: uvx pytest \
+                  --cov=import_tracker \
+                  --cov-report=term \
+                  --cov-report=html \
+                  --disable-pytest-warnings \
+                  --asyncio-mode=strict \
+                  --cov-fail-under=100.0 \
+                  -W error

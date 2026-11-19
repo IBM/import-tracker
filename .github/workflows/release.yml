@@ -5,57 +5,32 @@ on:
         types: [published]
     workflow_dispatch: {}
 jobs:
-    build-37:
+    build:
         runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                python-version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
         steps:
-            - uses: actions/checkout@v2
-            - name: Run release
+            - uses: actions/checkout@v4
+
+            - name: Set up Python ${{ matrix.python-version }}
+              uses: actions/setup-python@v5
+              with:
+                  python-version: ${{ matrix.python-version }}
+
+            - name: Install build tooling
+              run: uv tool install hatch hatch-vcs
+
+            - name: Build distribution artifacts
+              run: uvx hatch build --sdist --wheel
+
+            - name: Publish to PyPI
+              if: github.event_name == 'release'
               env:
                   PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
-                  PYTHON_VERSION: "3.7"
-              run: REF="${{ github.ref }}" ./scripts/release.sh
-    build-38:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v2
-            - name: Run release
-              env:
-                  PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
-                  PYTHON_VERSION: "3.8"
-              run: REF="${{ github.ref }}" ./scripts/release.sh
-    build-39:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v2
-            - name: Run release
-              env:
-                  PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
-                  PYTHON_VERSION: "3.9"
-              run: REF="${{ github.ref }}" ./scripts/release.sh
-    build-310:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v2
-            - name: Run release
-              env:
-                  PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
-                  PYTHON_VERSION: "3.10"
-              run: REF="${{ github.ref }}" ./scripts/release.sh
-    build-311:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v2
-            - name: Run release
-              env:
-                  PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
-                  PYTHON_VERSION: "3.11"
-              run: REF="${{ github.ref }}" ./scripts/release.sh
-    build-312:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v2
-            - name: Run release
-              env:
-                  PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
-                  PYTHON_VERSION: "3.12"
-              run: REF="${{ github.ref }}" ./scripts/release.sh
+              run: |
+                  uvx twine upload \
+                      --username __token__ \
+                      --password "$PYPI_TOKEN" \
+                      dist/*

@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "import_tracker"
+dynamic = ["version"]
+description = "A tool for managing dependencies in a modular python project by tracking which dependencies are needed by which sub-modules"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.7"
+authors = [
+    { name = "Gabe Goodhart", email = "gabe.l.hart@gmail.com" },
+]
+keywords = ["import", "importlib", "dependencies"]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=5.3.2",
+    "pytest-cov>=2.9.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/IBM/import-tracker"
+
+[tool.pytest.ini_options]
+addopts = [
+    "--cov=import_tracker",
+    "--cov-config=.coveragerc",
+    "--cov-report=term",
+    "--cov-report=html",
+    "--disable-pytest-warnings",
+    "--cov-fail-under=100.0",
+    "--asyncio-mode=strict",
+    "-W", "error",
+]
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.sdist]
+include = ["import_tracker/", "LICENSE", "README.md"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["import_tracker"]
