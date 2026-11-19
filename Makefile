@@ -15,22 +15,19 @@ test: ## Run the unit tests
 fmt: ## Run code formatting
 	./scripts/fmt.sh
 
-.PHONY: wheel
-wheel: ## Build release wheels
-	./scripts/build_wheel.sh
-
 ##@ Develop
 
-.PHONY: develop.build
-develop.build: ## Build the development environment container
-	docker build . --target=base -t import-tracker-develop
+.PHONY: venv
+venv: ## Create a local development venv with uv
+	uv venv --python 3.12
+	uv pip install -e .[test]
 
-.PHONY: develop
-develop:	develop.build ## Run the develop shell with the local codebase mounted
-	touch .bash_history
-	docker run --rm -it \
-		--entrypoint bash \
-		-w /src \
-		-v ${PWD}:/src \
-		-v ${PWD}/.bash_history:/root/.bash_history \
-		import-tracker-develop
+##@ Build
+
+.PHONY: build
+build: ## Build sdist and wheel artifacts (uses hatchling via uv)
+	uv build --sdist --wheel
+
+# Alias
+.PHONY: wheel
+wheel: build
