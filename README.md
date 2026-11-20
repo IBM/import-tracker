@@ -111,7 +111,7 @@ requirements_file = os.path.join(os.path.dirname(__file__), "requirements.txt")
 
 # Parse the requirement sets
 install_requires, extras_require = import_tracker.setup_tools.parse_requirements(
-    requirements_file=requirements_file,
+    requirements=requirements_file,
     library_name="my_module",
     extras_modules=[
         "my_module.widgets.widget1",
